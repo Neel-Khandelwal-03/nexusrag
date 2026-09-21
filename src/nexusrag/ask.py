@@ -15,6 +15,7 @@ import sys
 from nexusrag.config import get_settings
 from nexusrag.llm.gemini_client import GeminiError
 from nexusrag.log import configure_logging
+from nexusrag.models import Route
 from nexusrag.service import RAGService
 from nexusrag.store.registry import InvalidCollectionName
 
@@ -26,7 +27,12 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("question", help="The question to ask")
     parser.add_argument("-c", "--collection", help="Knowledge base (default: DEFAULT_COLLECTION)")
     parser.add_argument("--style", choices=["concise", "detailed"], default="detailed")
-    parser.add_argument("--show-context", action="store_true", help="Print the retrieved passages")
+    parser.add_argument(
+        "--show-context", action="store_true", help="Print the agent steps and context passages"
+    )
+    parser.add_argument(
+        "--mode", choices=["summarize", "compare"], help="Force a summary or comparison"
+    )
     return parser
 
 
@@ -39,7 +45,7 @@ async def _run(args: argparse.Namespace) -> int:
             print(token, end="", flush=True)
 
         async def on_reset() -> None:
-            print("\n[the model was interrupted; regenerating with the fallback model]\n")
+            print("\n[discarding the previous draft and regenerating]\n")
 
         result = await service.ask(
             args.question,
@@ -47,30 +53,38 @@ async def _run(args: argparse.Namespace) -> int:
             style=args.style,
             on_token=on_token,
             on_reset=on_reset,
+            mode={"summarize": Route.SUMMARIZE, "compare": Route.COMPARE}.get(args.mode or ""),
         )
         answer = result.answer
         if answer.citations:
             print("\n\nSources:")
             for citation in answer.citations:
                 print(f"  [{citation.index}] {citation.location}")
+        if answer.closest_matches:
+            print("\n\nClosest matches in your documents:")
+            for match in answer.closest_matches:
+                print(f"  - {match.location}")
         if args.show_context:
-            retrieval = result.retrieval
-            print(f"\nSearched for: {retrieval.query}")
-            for variant in retrieval.plan.variants:
-                print(f"  variant: {variant}")
-            reranker = retrieval.reranker or "none"
-            print(f"Candidates after fusion: {len(retrieval.candidates)}; reranker: {reranker}")
-            print("Retrieved passages:")
-            for passage in retrieval.passages:
-                best = passage.chunks[0].scores
-                parts = [f"rrf={best.rrf_score:.4f}" if best.rrf_score is not None else ""]
-                if best.rerank_score is not None:
+            print("\nAgent steps:")
+            for i, step in enumerate(answer.steps, start=1):
+                print(f"  {i}. {step.label} ({step.ms:.0f} ms)")
+            if result.passages:
+                print("Context passages:")
+            for passage in result.passages:
+                best = passage.chunks[0].scores if passage.chunks else None
+                parts = []
+                if best is not None and best.rrf_score is not None:
+                    parts.append(f"rrf={best.rrf_score:.4f}")
+                if best is not None and best.rerank_score is not None:
                     parts.append(f"rerank={best.rerank_score:.3f}")
-                label = " ".join(p for p in parts if p)
+                label = " ".join(parts)
                 print(f"  [{passage.index}] {label}  {passage.to_citation().location}")
         u = answer.usage
-        timing = ", ".join(f"{t.stage} {t.ms:.0f}ms" for t in answer.timings)
-        print(f"\n({timing}; {u.prompt_tokens}+{u.output_tokens} tokens, est. ${u.cost_usd:.5f})")
+        total_s = sum(t.ms for t in answer.timings) / 1000
+        print(
+            f"\n(route {answer.route.value}; {total_s:.1f}s; {u.calls} model calls; "
+            f"{u.prompt_tokens}+{u.output_tokens} tokens, est. ${u.cost_usd:.5f})"
+        )
         return 0
     finally:
         service.close()

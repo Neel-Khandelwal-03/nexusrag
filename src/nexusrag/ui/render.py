@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from nexusrag.models import Citation
+from nexusrag.models import AgentStep, Citation
 from nexusrag.store.registry import DocumentRecord
 
 
@@ -41,6 +41,22 @@ def sources_footer(citations: Sequence[Citation]) -> str:
     """Compact list of the cited sources, appended below the answer."""
     rows = [f"- {citation_element_name(c)} {c.location}" for c in citations]
     return "**Sources**\n" + "\n".join(rows)
+
+
+def match_element_name(citation: Citation) -> str:
+    """Side-panel name for a "closest match" (distinct from answer citations)."""
+    return f"match {citation.index}"
+
+
+def closest_matches_footer(matches: Sequence[Citation]) -> str:
+    """Shown under a refusal: what the knowledge base *does* contain near the question."""
+    rows = [f"- {match_element_name(m)}: {m.location}" for m in matches]
+    return "**Closest matches in your documents**\n" + "\n".join(rows)
+
+
+def steps_markdown(steps: Sequence[AgentStep]) -> str:
+    """Compact pipeline trace, one line per agent step."""
+    return "\n".join(f"{i}. {s.label} ({s.ms:.0f} ms)" for i, s in enumerate(steps, start=1))
 
 
 def welcome_markdown(collection: str, documents: Sequence[DocumentRecord]) -> str:
