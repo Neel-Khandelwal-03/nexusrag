@@ -73,6 +73,20 @@ How documents are processed:
 
 The `data/` folder holds a small fictional corpus about "Skylark Dynamics", a made-up drone maker, used for the demo and the evaluation suite. It contains two product specs (PDF and DOCX), an HR policy (Markdown), a support FAQ (TXT) and a quarterly report (PDF with financial tables). To regenerate the binary files, run `python scripts/build_sample_docs.py`.
 
+### Asking questions
+
+```bash
+chainlit run app.py                                   # chat UI at http://localhost:8000
+python -m nexusrag.ask "How long does the Aurora X1 battery last?" --show-context
+```
+
+Each answer is grounded in the retrieved passages:
+- The question is embedded and matched against child chunks in Chroma; each hit is swapped for its parent section, within a context budget of 6,000 tokens.
+- Gemini streams an answer that cites every factual sentence with `[n]`. The passages are treated as untrusted data, so instructions hidden in a document are ignored.
+- Citations to passages that don't exist are removed after generation.
+- Click a `[n]` marker in the UI to open the source panel: file, page, section, the matched chunk and the full section the model read.
+- If the documents don't cover the question, the answer says *"I couldn't find this in your documents."* instead of falling back on general knowledge.
+
 ### Models
 
 All model IDs are configured via environment variables (see [.env.example](.env.example)):

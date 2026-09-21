@@ -78,6 +78,35 @@ def one_hot_embedder(scale: float = 3.0) -> EmbedFn:
     return _embed
 
 
+def keyword_embedder() -> EmbedFn:
+    """Bag-of-words vectors (hashing trick): texts sharing words get high cosine similarity.
+
+    Lets retrieval tests assert *which* chunk ranks first without a real model.
+    """
+    import re
+
+    ignore = {"task", "search", "result", "query", "title", "none", "text", "the", "a", "is", "of"}
+
+    def _embed(
+        model: str, contents: list[types.Content], config: types.EmbedContentConfig
+    ) -> types.EmbedContentResponse:
+        dim = config.output_dimensionality or 8
+        embeddings = []
+        for content in contents:
+            values = [0.0] * dim
+            text = (content.parts[0].text if content.parts else "") or ""
+            for word in re.findall(r"[a-z0-9]+", text.lower()):
+                if word not in ignore:
+                    digest = hashlib.sha256(word.encode()).digest()
+                    values[int.from_bytes(digest[:4], "little") % dim] += 1.0
+            if not any(values):
+                values[0] = 1.0
+            embeddings.append(types.ContentEmbedding(values=values))
+        return types.EmbedContentResponse(embeddings=embeddings)
+
+    return _embed
+
+
 def hash_embedder() -> EmbedFn:
     """Deterministic pseudo-random vector per text: same text -> same vector, others ~orthogonal."""
 

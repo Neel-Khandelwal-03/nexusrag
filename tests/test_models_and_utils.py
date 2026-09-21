@@ -52,7 +52,6 @@ def test_chroma_metadata_round_trip() -> None:
 def test_citation_location(start: int | None, end: int | None, expected: str) -> None:
     citation = Citation(
         index=1,
-        chunk_id="c",
         parent_id="p",
         doc_id="d",
         filename="report.pdf",
