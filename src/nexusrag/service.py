@@ -1,13 +1,14 @@
 """Application service: one object that answers questions against a knowledge base.
 
 The UI, the ``ask`` CLI and the evaluation suite all go through :class:`RAGService`,
-so they exercise the same pipeline. Phase 3 runs retrieve -> generate. Later phases
-put query transformation, reranking and the self-correcting agent behind the same
-interface.
+so they exercise the same pipeline: retrieve (query transformation, hybrid search,
+reranking, parent expansion) -> grounded generation. The self-correcting agent
+(phase 5) sits behind the same interface.
 """
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from nexusrag.config import Settings, get_settings
@@ -15,8 +16,8 @@ from nexusrag.generation.answer import AnswerGenerator, AnswerStyle, TokenCallba
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.llm.usage import track_usage
 from nexusrag.log import get_logger, request_context, timed
-from nexusrag.models import Answer, Route, SearchFilters, StageTiming
-from nexusrag.retrieval.retriever import RetrievalResult, Retriever
+from nexusrag.models import Answer, ChatTurn, Route, SearchFilters, StageTiming
+from nexusrag.retrieval.retriever import RetrievalOptions, RetrievalResult, Retriever
 from nexusrag.store import Stores
 from nexusrag.store.registry import validate_collection_name
 
@@ -52,7 +53,9 @@ class RAGService:
         question: str,
         *,
         collection: str | None = None,
+        history: Sequence[ChatTurn] = (),
         filters: SearchFilters | None = None,
+        options: RetrievalOptions | None = None,
         style: AnswerStyle = "detailed",
         on_token: TokenCallback | None = None,
         request_id: str | None = None,
@@ -64,15 +67,21 @@ class RAGService:
             track_usage() as usage,
             timed() as total,
         ):
-            retrieval = await self.retriever.retrieve(question, collection=kb, filters=filters)
+            retrieval = await self.retriever.retrieve(
+                question, collection=kb, history=history, filters=filters, options=options
+            )
             with timed() as gen:
+                # Answer the standalone question: after condensation it carries the context
+                # a follow-up like "and its warranty?" lacks.
                 generated = await self.generator.generate(
-                    question, retrieval.passages, style=style, on_token=on_token
+                    retrieval.query, retrieval.passages, style=style, on_token=on_token
                 )
             totals = usage.totals()
             log.info(
                 "rag.answer",
+                candidates=len(retrieval.candidates),
                 chunks=len(retrieval.chunks),
+                reranker=retrieval.reranker,
                 passages=len(retrieval.passages),
                 cited=len(generated.citations),
                 refused=generated.refused,

@@ -16,6 +16,7 @@ import chainlit as cl
 from nexusrag.config import get_settings
 from nexusrag.llm.gemini_client import GeminiError
 from nexusrag.log import configure_logging, get_logger
+from nexusrag.models import ChatTurn
 from nexusrag.service import RAGService
 from nexusrag.ui.render import (
     citation_element_name,
@@ -60,9 +61,12 @@ async def on_message(message: cl.Message) -> None:
         await cl.Message(content=setup_error_markdown(exc.user_message)).send()
         return
 
+    # Previous turns let the retriever rewrite follow-ups ("and its warranty?") into
+    # standalone questions. Only answer text is kept, without the sources footer.
+    history: list[ChatTurn] = cl.user_session.get("history") or []
     reply = cl.Message(content="")
     try:
-        result = await service.ask(message.content, on_token=reply.stream_token)
+        result = await service.ask(message.content, history=history, on_token=reply.stream_token)
     except GeminiError as exc:
         reply.content = f"⚠️ {exc.user_message}"
         await reply.send()
@@ -75,6 +79,14 @@ async def on_message(message: cl.Message) -> None:
         return
 
     answer = result.answer
+    history += [
+        ChatTurn(role="user", content=message.content),
+        ChatTurn(role="assistant", content=answer.text),
+    ]
+    # HISTORY_TURNS counts messages; note history[-0:] would keep everything.
+    keep = settings.history_turns
+    cl.user_session.set("history", history[-keep:] if keep else [])
+
     reply.content = answer.text
     if answer.citations:
         reply.content += "\n\n" + sources_footer(answer.citations)
