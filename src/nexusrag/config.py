@@ -49,7 +49,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_file=".env",
-        env_file_encoding="utf-8",
+        # utf-8-sig: Windows editors may add a BOM, which would otherwise rename the first key.
+        env_file_encoding="utf-8-sig",
         extra="ignore",
         case_sensitive=False,
         # `FOO=` in .env means "use the default", not "empty string".
@@ -71,6 +72,10 @@ class Settings(BaseSettings):
     # Main answer model and a cheaper/faster model for rewriting, routing and grading.
     generation_model: str = "gemini-3.8-flash"
     fast_model: str = "gemini-3.5-flash-lite"
+    # Used when the primary model is still overloaded (429/5xx) after retries, or is gone
+    # (404). "none" disables fallback for that role.
+    generation_fallback_model: str | None = "gemini-3.7-flash"
+    fast_fallback_model: str | None = "gemini-3.1-flash-lite"
     embedding_model: str = "gemini-embedding-2"
     embedding_dim: int = Field(default=768, ge=128, le=3072)
     # gemini-embedding-2 marks queries/documents with text prefixes; legacy models use
@@ -87,9 +92,10 @@ class Settings(BaseSettings):
     fast_temperature: float | None = Field(default=None, ge=0.0, le=2.0)
     max_output_tokens: int = Field(default=8192, ge=256)
     llm_timeout_s: float = Field(default=60.0, gt=0)
-    llm_max_attempts: int = Field(default=5, ge=1, le=10)
+    # Attempts per model; kept low for interactive latency because a fallback model exists.
+    llm_max_attempts: int = Field(default=3, ge=1, le=10)
     llm_retry_initial_wait_s: float = Field(default=1.0, ge=0)
-    llm_retry_max_wait_s: float = Field(default=30.0, ge=0)
+    llm_retry_max_wait_s: float = Field(default=8.0, ge=0)
     llm_prices: dict[str, ModelPrice] = Field(default_factory=lambda: dict(DEFAULT_PRICES))
 
     # ------------------------------------------------------------------ storage
@@ -142,6 +148,8 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ validators
     @field_validator(
+        "generation_fallback_model",
+        "fast_fallback_model",
         "generation_thinking_level",
         "fast_thinking_level",
         "generation_temperature",

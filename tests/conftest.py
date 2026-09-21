@@ -59,6 +59,9 @@ def make_settings() -> Callable[..., Settings]:
             # Stages that need extra LLM calls or a local model are opted into per test.
             "enable_multi_query": False,
             "enable_rerank": False,
+            # Fallback models are opted into by the tests that exercise them.
+            "generation_fallback_model": None,
+            "fast_fallback_model": None,
         }
         values.update(overrides)
         return Settings(_env_file=None, **values)  # type: ignore[call-arg]

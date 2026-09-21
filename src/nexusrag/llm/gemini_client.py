@@ -4,7 +4,8 @@ Responsibilities:
 
 * pick the model per *role*: ``main`` for user-facing answers, ``fast`` for cheap
   rewriting, routing and grading calls. Both names come from settings;
-* retry transient failures (429, 5xx, timeouts) with exponential backoff and full jitter;
+* retry transient failures (429, 5xx, timeouts) with exponential backoff and full jitter,
+  then fall back to a configured backup model when the primary is overloaded;
 * structured JSON-schema output, parsed into Pydantic models;
 * token streaming for the answer generator;
 * batched, L2-normalised embeddings with the right query/document formatting;
@@ -47,6 +48,7 @@ log = get_logger(__name__)
 ModelRole = Literal["main", "fast"]
 EmbedKind = Literal["query", "document"]
 Prompt: TypeAlias = str | Sequence[types.Content]
+RestartCallback = Callable[[], Awaitable[None]]
 T = TypeVar("T", bound=BaseModel)
 R = TypeVar("R")
 
@@ -104,6 +106,13 @@ def is_retryable(exc: BaseException) -> bool:
     if isinstance(exc, genai_errors.APIError):
         return exc.code in RETRYABLE_STATUS_CODES
     return isinstance(exc, httpx.TransportError | TimeoutError)
+
+
+def should_fall_back(exc: BaseException) -> bool:
+    """True when switching models may help: still overloaded after retries, or model gone."""
+    if isinstance(exc, genai_errors.APIError) and exc.code == 404:
+        return True
+    return is_retryable(exc)
 
 
 def translate_error(exc: BaseException, stage: str) -> GeminiError:
@@ -235,6 +244,50 @@ class GeminiClient:
         """Model ID for a role, from settings."""
         return self._settings.generation_model if role == "main" else self._settings.fast_model
 
+    def models_for(self, role: ModelRole) -> list[str]:
+        """Primary model for a role, followed by its fallback (if configured and different)."""
+        s = self._settings
+        primary = self.model_for(role)
+        fallback = s.generation_fallback_model if role == "main" else s.fast_fallback_model
+        return [primary, fallback] if fallback and fallback != primary else [primary]
+
+    async def _with_fallback(
+        self,
+        call: Callable[[str], Awaitable[R]],
+        *,
+        role: ModelRole,
+        stage: str,
+        models: Sequence[str] | None = None,
+    ) -> tuple[R, str]:
+        """Run ``call(model)`` with retries; if the primary stays unavailable, try the fallback.
+
+        New models in particular can return 503 "high demand" for minutes at a time. Retrying
+        the same model then just burns the user's patience, while an adjacent model is
+        usually available. Embeddings never fall back: another model's vectors wouldn't match
+        the index.
+        """
+        models = list(models or self.models_for(role))
+        for position, model in enumerate(models):
+            try:
+                result = await self._with_retry(
+                    lambda m=model: call(m),  # type: ignore[misc]
+                    stage=stage,
+                    model=model,
+                )
+                return result, model
+            except Exception as exc:
+                if position + 1 < len(models) and should_fall_back(exc):
+                    log.warning(
+                        "llm.model_fallback",
+                        stage=stage,
+                        from_model=model,
+                        to_model=models[position + 1],
+                        status=getattr(exc, "code", None),
+                    )
+                    continue
+                raise
+        raise AssertionError("unreachable: models_for() is never empty")
+
     def build_config(
         self,
         role: ModelRole,
@@ -247,7 +300,12 @@ class GeminiClient:
         s = self._settings
         level = s.generation_thinking_level if role == "main" else s.fast_thinking_level
         temperature = s.generation_temperature if role == "main" else s.fast_temperature
-        kwargs: dict[str, Any] = {"max_output_tokens": max_output_tokens or s.max_output_tokens}
+        kwargs: dict[str, Any] = {
+            "max_output_tokens": max_output_tokens or s.max_output_tokens,
+            # We never pass tools, so turn off the SDK's automatic function calling: it's on by
+            # default and logs a warning plus an INFO line on every call.
+            "automatic_function_calling": types.AutomaticFunctionCallingConfig(disable=True),
+        }
         if system_instruction:
             kwargs["system_instruction"] = system_instruction
         if temperature is not None:
@@ -315,43 +373,88 @@ class GeminiClient:
         system_instruction: str | None = None,
         stage: str = "answer",
         max_output_tokens: int | None = None,
+        on_restart: RestartCallback | None = None,
     ) -> AsyncIterator[str]:
-        """Stream visible text deltas. Usage is recorded when the stream ends or is closed."""
-        model = self.model_for(role)
+        """Stream visible text deltas. Usage is recorded when each attempt ends or is closed.
+
+        Failures before the first visible text are retried (and fall back) transparently.
+        If a transient failure interrupts the stream *after* text was yielded, and the
+        caller passed ``on_restart``, the client awaits ``on_restart()`` (the caller discards
+        what it received) and restarts once on the next model. Without ``on_restart`` the
+        error propagates, because silently restarting would duplicate text.
+        """
         config = self.build_config(
             role, system_instruction=system_instruction, max_output_tokens=max_output_tokens
         )
         contents = _as_contents(prompt)
-        started = time.perf_counter()
 
-        async def open_stream() -> tuple[AsyncIterator[types.GenerateContentResponse], Any]:
+        async def open_stream(
+            model_id: str,
+        ) -> tuple[AsyncIterator[types.GenerateContentResponse], list[Any]]:
             iterator = await self._client.aio.models.generate_content_stream(
-                model=model, contents=contents, config=config
+                model=model_id, contents=contents, config=config
             )
-            # Pull the first chunk inside the retry scope: quota and connection errors surface
-            # here, and retrying is only safe before any text has reached the user.
-            first = await anext(iterator, None)
-            return iterator, first
+            # Read up to the first chunk with *visible* text inside the retry/fallback scope.
+            # Overload and quota errors can arrive as a stream event after empty or thought-only
+            # chunks; retrying is safe until text has reached the user.
+            primed: list[Any] = []
+            while (chunk := await anext(iterator, None)) is not None:
+                primed.append(chunk)
+                if response_text(chunk):
+                    break
+            return iterator, primed
 
-        usage_md: types.GenerateContentResponseUsageMetadata | None = None
-        opened = False
-        try:
-            with _translated(stage):
-                iterator, chunk = await self._with_retry(open_stream, stage=stage, model=model)
-                opened = True
-                if chunk is not None:
-                    _raise_if_blocked(chunk, stage)
-                while chunk is not None:
-                    if chunk.usage_metadata is not None:
-                        usage_md = chunk.usage_metadata
-                    text = response_text(chunk)
-                    if text:
-                        yield text
-                    chunk = await anext(iterator, None)
-        finally:
-            # Also runs when the consumer stops early, so partial streams are still accounted.
-            if opened:
-                self._record_generation(stage, model, usage_md, started)
+        async def chunks(
+            iterator: AsyncIterator[types.GenerateContentResponse], primed: list[Any]
+        ) -> AsyncIterator[types.GenerateContentResponse]:
+            for chunk in primed:
+                yield chunk
+            while (chunk := await anext(iterator, None)) is not None:
+                yield chunk
+
+        models = self.models_for(role)
+        restarts_left = 1 if on_restart is not None else 0
+        with _translated(stage):
+            while True:
+                started = time.perf_counter()
+                usage_md: types.GenerateContentResponseUsageMetadata | None = None
+                model: str | None = None
+                yielded = False
+                try:
+                    (iterator, primed), model = await self._with_fallback(
+                        open_stream, role=role, stage=stage, models=models
+                    )
+                    if primed:
+                        _raise_if_blocked(primed[0], stage)
+                    async for chunk in chunks(iterator, primed):
+                        if chunk.usage_metadata is not None:
+                            usage_md = chunk.usage_metadata
+                        text = response_text(chunk)
+                        if text:
+                            yielded = True
+                            yield text
+                    return
+                except Exception as exc:
+                    if not (yielded and restarts_left > 0 and should_fall_back(exc)):
+                        raise
+                    assert on_restart is not None
+                    assert model is not None
+                    restarts_left -= 1
+                    # Prefer the next model: the one that just failed is clearly struggling.
+                    position = models.index(model)
+                    models = models[position + 1 :] or [model]
+                    log.warning(
+                        "llm.stream_restart",
+                        stage=stage,
+                        failed_model=model,
+                        next_model=models[0],
+                        status=getattr(exc, "code", None),
+                    )
+                    await on_restart()
+                finally:
+                    # Also runs when the consumer stops early, so partial streams are accounted.
+                    if model is not None:
+                        self._record_generation(stage, model, usage_md, started)
 
     async def _generate(
         self,
@@ -363,7 +466,6 @@ class GeminiClient:
         max_output_tokens: int | None,
         json_schema: dict[str, Any] | None,
     ) -> GenerationResult:
-        model = self.model_for(role)
         config = self.build_config(
             role,
             system_instruction=system_instruction,
@@ -373,12 +475,12 @@ class GeminiClient:
         contents = _as_contents(prompt)
         started = time.perf_counter()
         with _translated(stage):
-            response = await self._with_retry(
-                lambda: self._client.aio.models.generate_content(
-                    model=model, contents=contents, config=config
+            response, model = await self._with_fallback(
+                lambda model_id: self._client.aio.models.generate_content(
+                    model=model_id, contents=contents, config=config
                 ),
+                role=role,
                 stage=stage,
-                model=model,
             )
             _raise_if_blocked(response, stage)
         usage = self._record_generation(stage, model, response.usage_metadata, started)

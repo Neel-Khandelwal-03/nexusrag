@@ -54,7 +54,14 @@ CONTENT_KEYS = frozenset(
 )
 
 # Chatty third-party loggers that would otherwise flood INFO output.
-_NOISY_LOGGERS = ("httpx", "httpcore", "urllib3", "chromadb.telemetry", "sentence_transformers")
+_NOISY_LOGGERS = (
+    "httpx",
+    "httpcore",
+    "urllib3",
+    "google_genai",
+    "chromadb.telemetry",
+    "sentence_transformers",
+)
 
 
 def scrub(value: str) -> str:
