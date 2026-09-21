@@ -51,3 +51,17 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
     if len(ids) <= max_tokens:
         return text
     return str(enc.decode(ids[:max_tokens]))
+
+
+def split_by_tokens(text: str, max_tokens: int) -> list[str]:
+    """Cut ``text`` into consecutive windows of at most ``max_tokens`` (last-resort splitting)."""
+    if max_tokens <= 0:
+        raise ValueError("max_tokens must be positive")
+    if not text:
+        return []
+    enc = _encoding()
+    if enc is None:
+        size = max_tokens * CHARS_PER_TOKEN
+        return [text[i : i + size] for i in range(0, len(text), size)]
+    ids = enc.encode(text, disallowed_special=())
+    return [str(enc.decode(ids[i : i + max_tokens])) for i in range(0, len(ids), max_tokens)]

@@ -19,3 +19,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `scripts/smoke_gemini.py`: live check of the API key and model configuration.
   - Unit tests with a scripted fake Gemini client (the real SDK client is blocked in tests).
 - CI now installs the package and runs ruff lint, ruff format, mypy and pytest.
+- Ingestion (phase 2):
+  - Loaders for PDF, DOCX, Markdown, TXT and URLs.
+    - PDF: PyMuPDF text with outline- or font-based headings, pdfplumber tables as Markdown, header/footer/page-number removal, and re-joining of tables and paragraphs split across pages.
+    - URLs: SSRF-guarded fetching, with trafilatura extracting the main content.
+  - Structure-aware parent/child chunker. It splits along headings, merges small sibling sections, keeps tables whole (oversized tables split between rows with the header repeated), and adds sentence-aligned overlap between child chunks.
+  - Stores: ChromaDB vector store (cosine, one collection per knowledge base, embedding-model guard), plus a SQLite registry, parent store and BM25 index (rank-bm25 with Lucene IDF) sharing one database for atomic document replacement.
+  - Incremental pipeline: skips unchanged files, removes stale chunks, reuses vectors for unchanged chunks, optionally prunes deleted files, and reports progress events for the UI.
+  - `python -m nexusrag.ingest` CLI (`nexusrag-ingest` console script).
+  - Fictional "Skylark Dynamics" sample corpus in `data/` and `scripts/build_sample_docs.py`.

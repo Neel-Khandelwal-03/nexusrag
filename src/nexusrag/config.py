@@ -167,13 +167,8 @@ class Settings(BaseSettings):
 
     @property
     def sqlite_path(self) -> Path:
-        """SQLite file for parent sections and the ingestion registry."""
+        """SQLite file for the document registry, parent sections and BM25 token lists."""
         return self.storage_dir / "nexusrag.db"
-
-    @property
-    def bm25_dir(self) -> Path:
-        """Directory holding one persisted BM25 index per collection."""
-        return self.storage_dir / "bm25"
 
     @property
     def chat_db_path(self) -> Path:

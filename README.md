@@ -45,6 +45,34 @@ Run the quality gates. CI runs the same commands, with Gemini mocked:
 ruff check . && ruff format --check . && mypy && pytest
 ```
 
+### Ingesting documents
+
+```bash
+python -m nexusrag.ingest data/                       # index the sample corpus (incremental)
+python -m nexusrag.ingest report.pdf https://example.com/guide --collection research
+python -m nexusrag.ingest data/ --prune               # also remove docs whose files were deleted
+python -m nexusrag.ingest --list                      # what's indexed
+python -m nexusrag.ingest --list-collections          # knowledge bases
+```
+
+Supported sources: **PDF** (with page numbers and tables), **DOCX**, **Markdown**, **TXT** and **web URLs**.
+
+How documents are processed:
+- **Parsing.** Loaders extract structure: headings, paragraphs, lists, tables (rendered as Markdown) and code blocks.
+  - PDF: headings come from the outline or from font sizes; running headers, footers and page numbers are removed; tables and paragraphs split by a page break are re-joined.
+  - URLs: fetched with SSRF protection (private and link-local addresses are refused on every redirect), and the main content is extracted with trafilatura.
+- **Parent–child chunking.** Documents are split along their headings into *parent* sections of up to about 1,200 tokens, which is what the LLM reads. Each parent is cut into *child* chunks of about 256 tokens with a 40-token sentence-aligned overlap; children are what get embedded and searched.
+  - Small sibling sections are merged into one parent.
+  - Tables are never split mid-table.
+  - Every chunk records its section path, e.g. `2 Hardware > 2.3 Battery System`.
+- **Incremental indexing.**
+  - Unchanged files are skipped (SHA-256 of the file).
+  - Changed files replace their old chunks in Chroma, BM25 and the parent store.
+  - Unchanged chunks inside a changed file reuse their existing vectors, so an edit costs only the changed chunks.
+- **Storage.** Vectors live in ChromaDB (one collection per knowledge base). The document registry, parent sections and BM25 token lists share one SQLite file, so each document update commits atomically.
+
+The `data/` folder holds a small fictional corpus about "Skylark Dynamics", a made-up drone maker, used for the demo and the evaluation suite. It contains two product specs (PDF and DOCX), an HR policy (Markdown), a support FAQ (TXT) and a quarterly report (PDF with financial tables). To regenerate the binary files, run `python scripts/build_sample_docs.py`.
+
 ### Models
 
 All model IDs are configured via environment variables (see [.env.example](.env.example)):

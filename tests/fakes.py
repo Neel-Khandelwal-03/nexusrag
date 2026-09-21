@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections import deque
 from collections.abc import AsyncIterator, Callable, Sequence
 from types import SimpleNamespace
 from typing import Any
 
+import numpy as np
 from google.genai import errors as genai_errors
 from google.genai import types
 
@@ -70,6 +72,24 @@ def one_hot_embedder(scale: float = 3.0) -> EmbedFn:
         for i, _ in enumerate(contents):
             values = [0.0] * dim
             values[i % dim] = scale
+            embeddings.append(types.ContentEmbedding(values=values))
+        return types.EmbedContentResponse(embeddings=embeddings)
+
+    return _embed
+
+
+def hash_embedder() -> EmbedFn:
+    """Deterministic pseudo-random vector per text: same text -> same vector, others ~orthogonal."""
+
+    def _embed(
+        model: str, contents: list[types.Content], config: types.EmbedContentConfig
+    ) -> types.EmbedContentResponse:
+        dim = config.output_dimensionality or 8
+        embeddings = []
+        for content in contents:
+            text = content.parts[0].text if content.parts else ""
+            seed = int.from_bytes(hashlib.sha256((text or "").encode()).digest()[:8], "little")
+            values = np.random.default_rng(seed).standard_normal(dim).tolist()
             embeddings.append(types.ContentEmbedding(values=values))
         return types.EmbedContentResponse(embeddings=embeddings)
 

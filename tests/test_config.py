@@ -89,7 +89,6 @@ def test_derived_paths(make_settings: Callable[..., Settings]) -> None:
     s = make_settings(storage_dir=Path("/tmp/nx"))
     assert s.chroma_dir == Path("/tmp/nx/chroma")
     assert s.sqlite_path == Path("/tmp/nx/nexusrag.db")
-    assert s.bm25_dir == Path("/tmp/nx/bm25")
     assert s.chat_db_path == Path("/tmp/nx/chainlit.db")
     assert not s.is_deployed
     assert make_settings(environment="production").is_deployed

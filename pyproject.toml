@@ -20,15 +20,24 @@ classifiers = [
   "Operating System :: OS Independent",
 ]
 dependencies = [
+  "chromadb>=1.5,<2",
   "google-genai>=2.24,<3",
   "httpx>=0.27",
   "numpy>=2.0",
+  "pdfplumber>=0.11",
   "pydantic>=2.11,<3",
   "pydantic-settings>=2.10,<3",
+  "pymupdf>=1.26",
+  "python-docx>=1.2",
+  "rank-bm25>=0.2.2",
   "structlog>=25.1",
   "tenacity>=9.0,<10",
   "tiktoken>=0.9",
+  "trafilatura>=2.0",
 ]
+
+[project.scripts]
+nexusrag-ingest = "nexusrag.ingest:main"
 
 [project.optional-dependencies]
 dev = [
@@ -68,6 +77,10 @@ select = [
 ]
 # Prompts and docs legitimately use typographic characters (en dash, arrows, curly quotes).
 ignore = ["RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.per-file-ignores]
+# Sample-document prose and table cells; wrapping them would hurt readability.
+"scripts/build_sample_docs.py" = ["E501"]
 
 # --------------------------------------------------------------------------- mypy
 # Deliberately lenient: typed public surfaces, no strict mode.
