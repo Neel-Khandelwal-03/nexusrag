@@ -15,6 +15,7 @@ from nexusrag.ingestion.pipeline import IngestionPipeline
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.llm.prompts import REFUSAL_MESSAGE
 from nexusrag.models import AgentStep, Route, SearchFilters
+from nexusrag.retrieval.retriever import RetrievalOptions
 from nexusrag.service import RAGService
 from nexusrag.store import Stores
 from tests.fakes import FakeGenAI, json_response, keyword_embedder, make_response, router_response
@@ -135,6 +136,7 @@ class UI:
         self.text = ""
         self.resets = 0
         self.steps: list[AgentStep] = []
+        self.started: list[str] = []
 
     async def token(self, t: str) -> None:
         self.text += t
@@ -144,10 +146,19 @@ class UI:
         self.resets += 1
 
     async def step(self, s: AgentStep) -> None:
+        assert self.started[-1] == s.node  # every step was announced before it ran
         self.steps.append(s)
 
+    async def start(self, node: str) -> None:
+        self.started.append(node)
+
     def kwargs(self) -> dict[str, Any]:
-        return {"on_token": self.token, "on_reset": self.reset, "on_step": self.step}
+        return {
+            "on_token": self.token,
+            "on_reset": self.reset,
+            "on_step": self.step,
+            "on_node_start": self.start,
+        }
 
 
 # --------------------------------------------------------------------------- simple routes
@@ -203,6 +214,13 @@ async def test_doc_qa_happy_path(
         "check_groundedness",
     ]
     assert [s.node for s in ui.steps] == nodes(answer.steps)  # streamed to the UI as they happen
+    assert ui.started == nodes(answer.steps)
+    # The retrieve step carries the rankings the UI shows as tables.
+    detail = answer.steps[1].detail
+    assert set(detail["candidates"][0]) == {"location", "dense_rank", "bm25_rank", "rrf", "rerank"}
+    assert detail["kept"][0]["location"].startswith("aurora.md")
+    assert detail["timings"]
+    assert all(isinstance(v, float) for v in detail["timings"].values())
     assert answer.grounded is True
     assert answer.citations[0].index == 1
     assert ui.text == "A full charge takes 75 minutes [1]."
@@ -468,6 +486,28 @@ async def test_compare_retrieves_each_document_separately(
     assert '<document title="Aurora Spec" file="aurora.md">' in prompt
     assert '<document title="Borealis Sheet" file="borealis.md">' in prompt
     assert {c.filename for c in answer.citations} <= {"aurora.md", "borealis.md"}
+
+
+async def test_compare_does_not_drop_passages_below_the_rerank_threshold(
+    service: RAGService, fake_genai: FakeGenAI, script: Script, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[RetrievalOptions] = []
+    original = service.retriever.retrieve
+
+    async def spy(*args: Any, **kwargs: Any) -> Any:
+        seen.append(kwargs["options"])
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(service.retriever, "retrieve", spy)
+    script.add(
+        "route",
+        router_response("compare_documents", "Compare flight time and warranty", documents=[1, 2]),
+    )
+    script.add("grounded", json_response(grounded=True))
+    stream(fake_genai, "Aurora: 46 min [1]. Borealis: 95 min [2].")
+    await service.ask("Compare flight time and warranty")
+    assert [o.rerank_threshold for o in seen] == [0.0, 0.0]
+    assert {o.top_k for o in seen} == {service.settings.compare_top_k_per_doc}
 
 
 async def test_compare_needs_two_documents(
