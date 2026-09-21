@@ -130,6 +130,8 @@ class AgentRequest:
     #: Force summarize/compare (chat profiles). Greetings still get a chitchat reply.
     mode: Route | None = None
     self_correct: bool = True
+    #: Documents the user just uploaded: what "this file" or "this project" refers to.
+    recent_doc_ids: Sequence[str] = ()
 
 
 @dataclass
@@ -348,6 +350,15 @@ class AgentGraph:
         )
         return self._documents_by_id(state, ids)
 
+    def _retrieval_filters(self, state: AgentState) -> SearchFilters | None:
+        """The UI's document filter, else the documents a question explicitly points at."""
+        request, decision = state.request, state.decision
+        if request.filters is not None and not request.filters.is_empty:
+            return request.filters
+        if decision is not None and decision.route == Route.DOC_QA and decision.doc_ids:
+            return SearchFilters(doc_ids=decision.doc_ids)
+        return request.filters
+
     def _set_closest(self, state: AgentState) -> None:
         candidates = [rc for r in state.retrievals for rc in r.candidates]
         state.closest = closest_matches(candidates, limit=3)
@@ -357,7 +368,10 @@ class AgentGraph:
     async def _route(self, state: AgentState) -> tuple[Node, str, dict[str, Any]]:
         request = state.request
         decision = await self.router.route(
-            request.question, documents=state.documents, history=request.history
+            request.question,
+            documents=state.documents,
+            history=request.history,
+            recent_doc_ids=request.recent_doc_ids,
         )
         forced = (
             request.mode in (Route.SUMMARIZE, Route.COMPARE) and decision.route != Route.CHITCHAT
@@ -509,13 +523,15 @@ class AgentGraph:
         # The router already condensed the question; only let retrieval condense again when
         # routing fell back (no model output) and there is history to resolve.
         history = () if (state.decision and state.decision.from_model) else request.history
+        filters = self._retrieval_filters(state)
         result = await self.retriever.retrieve(
             state.query,
             collection=request.collection,
             history=history,
-            filters=request.filters,
+            filters=filters,
             options=options,
         )
+        scoped = filters.doc_ids if filters is not None and filters.doc_ids else []
         state.retrievals.append(result)
         if attempt == 0:
             state.chunks = list(result.chunks)
@@ -537,6 +553,7 @@ class AgentGraph:
             ),
             {
                 "query": state.query,
+                "scope": [d.filename for d in self._documents_by_id(state, scoped)],
                 "variants": result.plan.variants,
                 "reranker": result.reranker,
                 "candidates": [_trace_row(rc) for rc in result.candidates[:TRACE_ROWS]],

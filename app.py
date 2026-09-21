@@ -64,6 +64,7 @@ from nexusrag.ui.state import (
     RateLimiter,
     UISettings,
     history_from_thread,
+    uploaded_doc_ids,
 )
 
 settings = get_settings()
@@ -338,6 +339,7 @@ async def on_settings_update(values: dict[str, Any]) -> None:
     switched = ui.collection != old.collection
     if switched:
         ui = ui.model_copy(update={"documents": []})  # the filter belonged to the old KB
+        cl.user_session.set("recent_uploads", [])
     save_ui(ui)
     if switched or new_name:
         # Refresh the panel: the new KB's documents, and clear the "new KB" field.
@@ -550,6 +552,7 @@ async def answer_question(service: RAGService, question: str) -> None:
             style=ui.style,
             mode=PROFILE_MODES[current_profile()],
             self_correct=ui.self_correct,
+            recent_doc_ids=cl.user_session.get("recent_uploads") or [],
             on_token=reply.stream_token,
             on_reset=reset_reply,
             on_step=steps.finish,
@@ -619,6 +622,9 @@ def _upload_problem(name: str, path: Path) -> str | None:
 
 
 async def _after_ingest(service: RAGService, results: list[IngestResult]) -> None:
+    if doc_ids := uploaded_doc_ids(results):
+        # "What is this file about?" now refers to these documents.
+        cl.user_session.set("recent_uploads", doc_ids)
     if any(r.status in ("indexed", "updated") for r in results):
         await send_panel(service, current_ui())  # new documents appear in the filter
 

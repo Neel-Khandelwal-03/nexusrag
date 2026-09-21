@@ -144,6 +144,8 @@ def step_markdown(step: AgentStep) -> str:
             parts.append("- Forced by the selected chat profile")
     elif step.node == "retrieve":
         parts.append(f"- Search query: *{d.get('query', '')}*")
+        if d.get("scope"):
+            parts.append("- Searched only: " + ", ".join(f"`{x}`" for x in d["scope"]))
         for variant in d.get("variants") or []:
             parts.append(f"  - variant: *{variant}*")
         timings = d.get("timings") or {}

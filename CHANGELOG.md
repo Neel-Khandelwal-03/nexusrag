@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/stats` command (`RAGService.stats()`): documents, sections, chunks, vectors, model usage and cost.
   - Per-user rate limits for messages and uploads, and a friendly message instead of raw errors if a UI callback fails.
   - The cross-encoder is loaded in the background at startup (`RAGService.warm_up()`), and its load time is logged.
+- "What is this project about?" right after an upload now answers from the uploaded file. It had been routed to chitchat and described the assistant instead. Just-uploaded documents are marked in the router's catalog so "this file/project" resolves to them. "This project/document/…" questions are never chitchat. A doc_qa question aimed at specific documents searches only those documents (the UI document filter still takes precedence), and the retrieve step shows the scope.
 - Comparisons no longer drop sections below the rerank threshold. Each search is scoped to a named document, and on a multi-attribute question ("flight time and warranty") the threshold had discarded the performance tables. `RetrievalOptions.rerank_threshold` allows a per-request override.
 - Tests no longer read the developer's `.env` when Chainlit is imported, and every settings variable is cleared from the test environment.
 - Retrieval fixes found in live testing:

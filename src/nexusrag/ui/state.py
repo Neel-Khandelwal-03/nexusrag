@@ -13,6 +13,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from nexusrag.config import Settings
+from nexusrag.ingestion.pipeline import IngestResult
 from nexusrag.models import ChatTurn, SearchFilters
 from nexusrag.retrieval.retriever import RetrievalOptions
 
@@ -129,6 +130,11 @@ class RateLimiter:
         if len(events) < self.limit:
             return 0.0
         return max(0.0, events[0] + self.window_s - self._clock())
+
+
+def uploaded_doc_ids(results: Sequence[IngestResult]) -> list[str]:
+    """Documents an upload made available (new, updated or already indexed)."""
+    return [r.doc_id for r in results if r.doc_id and r.status in ("indexed", "updated", "skipped")]
 
 
 def strip_footers(text: str) -> str:

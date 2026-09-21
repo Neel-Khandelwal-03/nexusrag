@@ -27,6 +27,7 @@ from nexusrag.ui.state import (
     UISettings,
     history_from_thread,
     strip_footers,
+    uploaded_doc_ids,
 )
 
 # --------------------------------------------------------------------------- UISettings
@@ -105,6 +106,18 @@ def test_rate_limiter_cost_is_all_or_nothing() -> None:
     assert not limiter.allow("u", cost=2)  # refused without recording anything
     assert limiter.allow("u", cost=1)
     assert not limiter.allow("u")
+
+
+def test_uploaded_doc_ids() -> None:
+    from nexusrag.ingestion.pipeline import IngestResult
+
+    results = [
+        IngestResult("a.pdf", "indexed", doc_id="a"),
+        IngestResult("b.md", "skipped", doc_id="b"),  # already indexed: still "this file"
+        IngestResult("c.txt", "failed", error="empty"),
+        IngestResult("d.md", "updated", doc_id="d"),
+    ]
+    assert uploaded_doc_ids(results) == ["a", "b", "d"]
 
 
 # --------------------------------------------------------------------------- history

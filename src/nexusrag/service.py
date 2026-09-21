@@ -113,6 +113,7 @@ class RAGService:
         style: AnswerStyle = "detailed",
         mode: Route | None = None,
         self_correct: bool | None = None,
+        recent_doc_ids: Sequence[str] = (),
         on_token: TokenCallback | None = None,
         on_reset: ResetCallback | None = None,
         on_step: StepCallback | None = None,
@@ -123,6 +124,8 @@ class RAGService:
 
         ``mode`` forces the summarize/compare routes (chat profiles). ``self_correct``
         overrides ``ENABLE_SELF_CORRECTION`` for this request (used by the evaluation).
+        ``recent_doc_ids`` are documents the user just uploaded, so "what is this file
+        about?" resolves to them.
         """
         kb = validate_collection_name(collection or self.settings.default_collection)
         request = AgentRequest(
@@ -136,6 +139,7 @@ class RAGService:
             self_correct=self.settings.enable_self_correction
             if self_correct is None
             else self_correct,
+            recent_doc_ids=recent_doc_ids,
         )
         with (
             request_context(request_id, collection=kb) as rid,

@@ -5,7 +5,13 @@ from datetime import UTC, datetime
 import pytest
 
 from nexusrag.agent.grader import GroundednessGrader, RelevanceGrader
-from nexusrag.agent.router import MAX_CATALOG_ENTRIES, Router, format_catalog, is_greeting
+from nexusrag.agent.router import (
+    MAX_CATALOG_ENTRIES,
+    RECENT_MARK,
+    Router,
+    format_catalog,
+    is_greeting,
+)
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.models import ChatTurn, ContextPassage, ParentSection, Route, SourceType
 from nexusrag.store.registry import DocumentRecord
@@ -100,6 +106,35 @@ async def test_router_failure_defaults_to_doc_qa(
     decision = await Router(gemini).route("What is the range?", documents=DOCS)
     assert decision.route == Route.DOC_QA
     assert not decision.from_model
+
+
+async def test_just_uploaded_documents_are_marked_and_listed_first(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.append(
+        router_response("doc_qa", "What is the project in Doc 3 about?", documents=[1])
+    )
+    decision = await Router(gemini).route(
+        "what is this project about", documents=DOCS, recent_doc_ids=["d3", "gone"]
+    )
+    prompt = fake_genai.models.calls[0]["contents"]
+    assert f"1. Doc 3 (f3.md) {RECENT_MARK}" in prompt  # first, so truncation can't hide it
+    lines = prompt.splitlines()
+    assert "2. Doc 1 (f1.md)" in lines  # unmarked
+    assert "added moments ago" in prompt
+    assert decision.doc_ids == ["d3"]  # catalog number 1 now means the upload
+
+
+async def test_no_upload_note_without_recent_documents(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.append(router_response("doc_qa", "What is the range?"))
+    await Router(gemini).route("What is the range?", documents=DOCS, recent_doc_ids=["gone"])
+    prompt = fake_genai.models.calls[0]["contents"]
+    assert RECENT_MARK not in prompt
+    assert "added moments ago" not in prompt
+    lines = prompt.splitlines()
+    assert lines[lines.index("Document catalog:") + 1] == "1. Doc 1 (f1.md)"
 
 
 def test_catalog_formatting() -> None:

@@ -99,6 +99,7 @@ def test_retrieve_step_shows_hybrid_and_reranked_tables() -> None:
         label="Retrieved 1 passage",
         detail={
             "query": "battery life",
+            "scope": ["spec.pdf"],
             "variants": ["how long does the battery last"],
             "timings": {"dense": 120.4, "bm25": 3.2},
             "candidates": [row],
@@ -108,6 +109,7 @@ def test_retrieve_step_shows_hybrid_and_reranked_tables() -> None:
     )
     text = step_markdown(step)
     assert "- Search query: *battery life*" in text
+    assert "- Searched only: `spec.pdf`" in text
     assert "variant: *how long does the battery last*" in text
     assert "dense 120 ms, bm25 3 ms" in text
     assert "**Hybrid candidates**" in text

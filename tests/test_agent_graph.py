@@ -488,6 +488,36 @@ async def test_compare_retrieves_each_document_separately(
     assert {c.filename for c in answer.citations} <= {"aurora.md", "borealis.md"}
 
 
+async def test_question_about_a_specific_document_searches_only_that_document(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    policy = next(d for d in service.stores.registry.list_documents("default")
+                  if d.filename == "policy.md")  # fmt: skip
+    script.add("route", router_response("doc_qa", "What is the policy about?", documents=[1]))
+    script.add("relevance", json_response(sufficient=True))
+    script.add("grounded", json_response(grounded=True, unsupported_claims=[]))
+    stream(fake_genai, "It covers a home office stipend [1].")
+    result = await service.ask("what is this file about?", recent_doc_ids=[policy.doc_id])
+    assert "1. Remote Work Policy (policy.md) [just uploaded]" in script.prompts["route"][0]
+    retrieve = result.answer.steps[1]
+    assert retrieve.detail["scope"] == ["policy.md"]
+    assert {rc.chunk.metadata.filename for rc in result.retrievals[0].chunks} == {"policy.md"}
+
+
+async def test_ui_document_filter_wins_over_the_router(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    docs = {d.filename: d.doc_id for d in service.stores.registry.list_documents("default")}
+    script.add("route", router_response("doc_qa", "How long is the flight time?", documents=[3]))
+    script.add("relevance", json_response(sufficient=True))
+    script.add("grounded", json_response(grounded=True, unsupported_claims=[]))
+    stream(fake_genai, "46 minutes [1].")
+    result = await service.ask(
+        "How long is the flight time?", filters=SearchFilters(doc_ids=[docs["aurora.md"]])
+    )
+    assert result.answer.steps[1].detail["scope"] == ["aurora.md"]
+
+
 async def test_compare_does_not_drop_passages_below_the_rerank_threshold(
     service: RAGService, fake_genai: FakeGenAI, script: Script, monkeypatch: pytest.MonkeyPatch
 ) -> None:
