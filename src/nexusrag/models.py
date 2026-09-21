@@ -163,14 +163,59 @@ class RetrievedChunk(BaseModel):
     matched_queries: list[str] = Field(default_factory=list)
 
 
+class SearchFilters(BaseModel):
+    """Metadata restrictions applied to every retrieval stage (None = unrestricted)."""
+
+    doc_ids: list[str] | None = None
+    filenames: list[str] | None = None
+    source_types: list[SourceType] | None = None
+
+    @property
+    def is_empty(self) -> bool:
+        return self.doc_ids is None and self.filenames is None and self.source_types is None
+
+
+class ContextPassage(BaseModel):
+    """A numbered unit of context shown to the LLM.
+
+    It is a parent section, plus the retrieved child chunks inside it (the evidence
+    that pulled this section into the context).
+    """
+
+    index: int = Field(ge=1)
+    parent: ParentSection
+    chunks: list[RetrievedChunk] = Field(default_factory=list)
+
+    def to_citation(self) -> Citation:
+        p = self.parent
+        return Citation(
+            index=self.index,
+            parent_id=p.parent_id,
+            doc_id=p.doc_id,
+            filename=p.filename,
+            source_type=p.source_type,
+            title=p.title,
+            section_path=p.section_path,
+            page_start=p.page_start,
+            page_end=p.page_end,
+            text=p.text,
+            chunk_ids=[rc.chunk.chunk_id for rc in self.chunks],
+            highlights=[rc.chunk.text for rc in self.chunks],
+        )
+
+
 # --------------------------------------------------------------------------- generation
 
 
 class Citation(BaseModel):
-    """Maps an inline ``[n]`` marker to the exact source passage."""
+    """Maps an inline ``[n]`` marker to its source.
+
+    ``text`` is the full passage the model read (the parent section). ``chunk_ids`` and
+    ``highlights`` are the specific retrieved chunks within it, shown highlighted in
+    the source panel.
+    """
 
     index: int = Field(ge=1)
-    chunk_id: str
     parent_id: str
     doc_id: str
     filename: str
@@ -180,6 +225,8 @@ class Citation(BaseModel):
     page_start: int | None = None
     page_end: int | None = None
     text: str
+    chunk_ids: list[str] = Field(default_factory=list)
+    highlights: list[str] = Field(default_factory=list)
 
     @property
     def location(self) -> str:
@@ -229,6 +276,8 @@ class Answer(BaseModel):
     follow_ups: list[str] = Field(default_factory=list)
     #: Result of the groundedness check; None if the check didn't run.
     grounded: bool | None = None
+    #: True when the answer says the documents don't cover the question.
+    refused: bool = False
     cached: bool = False
     usage: UsageStats = Field(default_factory=UsageStats)
     timings: list[StageTiming] = Field(default_factory=list)
