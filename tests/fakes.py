@@ -132,6 +132,9 @@ class FakeModels:
         self.generate_queue: deque[Any] = deque()
         self.stream_queue: deque[Any] = deque()
         self.embed_fn: EmbedFn = one_hot_embedder()
+        #: Optional router for concurrent calls: ``fn(prompt_text) -> response | exception``.
+        #: Takes precedence over ``generate_queue`` when set.
+        self.generate_fn: Callable[[str], Any] | None = None
         self.calls: list[dict[str, Any]] = []
 
     async def generate_content(
@@ -140,7 +143,10 @@ class FakeModels:
         self.calls.append(
             {"method": "generate_content", "model": model, "contents": contents, "config": config}
         )
-        item = self.generate_queue.popleft()
+        if self.generate_fn is not None:
+            item = self.generate_fn(contents if isinstance(contents, str) else str(contents))
+        else:
+            item = self.generate_queue.popleft()
         if isinstance(item, BaseException):
             raise item
         return item  # type: ignore[no-any-return]
