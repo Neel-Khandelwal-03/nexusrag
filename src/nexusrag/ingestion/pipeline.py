@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import shutil
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -139,9 +140,17 @@ class IngestionPipeline:
                 load_file, path, filename=name, source_key=source_key
             )
             timings["parse"] = _ms(started)
-            return await self._index(
+            result = await self._index(
                 document, collection, force=force, progress=progress, timings=timings
             )
+            if document.source_type == SourceType.PDF:
+                kb = validate_collection_name(collection)
+                changed = result.status in ("indexed", "updated")
+                # Unchanged PDFs indexed before copies were kept get one now.
+                missing = result.status == "skipped" and not self._kept(kb, document.doc_id)
+                if changed or missing:
+                    await asyncio.to_thread(self._keep_pdf, path, kb, document.doc_id)
+            return result
         except EXPECTED_ERRORS as exc:
             return await self._failed(name, exc, progress, timings)
         except Exception as exc:
@@ -218,6 +227,15 @@ class IngestionPipeline:
                     )
         return results
 
+    def _kept(self, collection: str, doc_id: str) -> bool:
+        return self.settings.source_file_path(collection, doc_id).is_file()
+
+    def _keep_pdf(self, path: Path, collection: str, doc_id: str) -> None:
+        """Keep a copy of an ingested PDF so the UI can open it at the cited page."""
+        target = self.settings.source_file_path(collection, doc_id)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+
     async def delete_document(self, collection: str, doc_id: str) -> bool:
         """Remove a document from every store. Returns False if it wasn't indexed."""
         collection = validate_collection_name(collection)
@@ -230,6 +248,7 @@ class IngestionPipeline:
             stores.bm25.delete_document(collection, doc_id)
             stores.registry.delete_document(collection, doc_id)
             stores.registry.bump_version(collection)
+        self.settings.source_file_path(collection, doc_id).unlink(missing_ok=True)
         log.info("ingest.deleted", collection=collection, doc_id=doc_id)
         return True
 

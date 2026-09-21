@@ -166,6 +166,40 @@ async def test_delete_document(pipe: IngestionPipeline, tmp_path: Path) -> None:
     assert not await pipe.delete_document("kb", result.doc_id or "")
 
 
+def write_pdf(path: Path) -> Path:
+    import pymupdf
+
+    with pymupdf.open() as doc:
+        page = doc.new_page()
+        page.insert_text((72, 72), "Drone Guide", fontsize=20)
+        page.insert_text((72, 110), "The battery lasts 46 minutes and charges in 75 minutes.")
+        doc.save(path)
+    return path
+
+
+async def test_pdfs_are_kept_for_previews_and_removed_on_delete(
+    pipe: IngestionPipeline, settings: Settings, tmp_path: Path
+) -> None:
+    pdf = await pipe.ingest_file(write_pdf(tmp_path / "guide.pdf"), collection="kb")
+    assert pdf.status == "indexed"
+    assert pdf.doc_id
+    kept = settings.source_file_path("kb", pdf.doc_id)
+    assert kept.read_bytes() == (tmp_path / "guide.pdf").read_bytes()
+
+    # A PDF indexed before copies were kept gets one on its next (skipped) ingest.
+    kept.unlink()
+    again = await pipe.ingest_file(tmp_path / "guide.pdf", collection="kb")
+    assert again.status == "skipped"
+    assert kept.is_file()
+
+    md = await pipe.ingest_file(write(tmp_path / "notes.md", DOC_V1), collection="kb")
+    assert md.doc_id
+    assert not settings.source_file_path("kb", md.doc_id).exists()
+
+    assert await pipe.delete_document("kb", pdf.doc_id)
+    assert not kept.exists()
+
+
 async def test_collections_are_isolated(pipe: IngestionPipeline, tmp_path: Path) -> None:
     path = write(tmp_path / "guide.md", DOC_V1)
     await pipe.ingest_file(path, collection="alpha")

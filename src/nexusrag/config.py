@@ -195,6 +195,15 @@ class Settings(BaseSettings):
         return self.storage_dir / "nexusrag.db"
 
     @property
+    def files_dir(self) -> Path:
+        """Copies of ingested PDFs, used to preview cited pages in the UI."""
+        return self.storage_dir / "files"
+
+    def source_file_path(self, collection: str, doc_id: str) -> Path:
+        """Where the preview copy of a document's PDF is kept."""
+        return self.files_dir / collection / f"{doc_id}.pdf"
+
+    @property
     def chat_db_path(self) -> Path:
         """SQLite file backing Chainlit's chat history data layer."""
         return self.storage_dir / "chainlit.db"
