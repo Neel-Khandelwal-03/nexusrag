@@ -18,7 +18,8 @@ Planned capabilities:
 - **Cross-encoder reranking** with `BAAI/bge-reranker-base`.
 - **Query transformation.** Follow-up condensation, multi-query expansion and optional HyDE.
 - **Self-correcting agent.** An intent router, a relevance grader with query rewrites, and a groundedness check.
-- **Grounded answers** with inline `[n]` citations that open the exact source chunk.
+- **Grounded answers** with inline `[n]` citations that open the exact source chunk, or the PDF at the cited page.
+- **A transparent chat UI** that shows every pipeline step with its timing, alongside uploads, knowledge bases, modes and persistent history.
 - **Semantic cache** for near-duplicate questions.
 - **Evaluation suite** covering hit@k, MRR, context precision/recall, faithfulness, answer relevance, refusal rate, latency and cost.
 
@@ -89,7 +90,7 @@ Retrieval runs in stages, and each stage can be switched on or off:
 | HyDE (`ENABLE_HYDE`, off by default) | Drafts a hypothetical answer passage and searches with its embedding (dense only) | Helps when questions and documents are worded very differently |
 | Hybrid search (`ENABLE_HYBRID`) | Dense search in Chroma plus BM25, top 20 each, for every query | Embeddings capture meaning; BM25 catches exact codes like "CH-400" |
 | Reciprocal Rank Fusion (k=60) | Merges all rankings by rank, not score | No score normalisation needed; agreement across lists wins |
-| Reranking (`ENABLE_RERANK`) | `BAAI/bge-reranker-base` rescores the top 30 fused candidates and keeps the top-k above `RERANK_THRESHOLD` | Reading query and passage together is far more accurate than comparing embeddings |
+| Reranking (`ENABLE_RERANK`) | `BAAI/bge-reranker-base` rescores the top 20 fused candidates; the final order fuses its ranking with the hybrid one, keeping the top-k above `RERANK_THRESHOLD` | Reading query and passage together is far more accurate than comparing embeddings |
 | Parent expansion | Swaps chunks for their parent sections, within a 6,000-token budget | Small chunks for precise search, full sections for enough context |
 
 The cross-encoder is an optional extra because it pulls in PyTorch:
@@ -132,6 +133,24 @@ Each answer is grounded in the retrieved passages:
 - Citations to passages that don't exist are removed after generation.
 - Click a `[n]` marker in the UI to open the source panel: file, page, section, the matched chunk and the full section the model read.
 - If the documents don't cover the question, the answer says *"I couldn't find this in your documents."* instead of falling back on general knowledge.
+
+### The chat UI
+
+`chainlit run app.py` starts the full chat experience at http://localhost:8000:
+
+- **Login.** Password login with `AUTH_USERNAME` / `AUTH_PASSWORD`, compared in constant time. Locally, with no password set, the configured username logs in with any password. Staging and production refuse every login until a password is set, and refuse to start without `CHAINLIT_AUTH_SECRET`.
+- **History.** Chats are stored in SQLite (`storage/chainlit.db`) and can be resumed from the sidebar after a restart. The follow-up context is rebuilt from the saved messages. Thumbs up/down feedback on each answer is saved too.
+- **Uploads.** Drag PDF, DOCX, Markdown or TXT files into the chat, up to `MAX_UPLOAD_FILES` per message and `MAX_UPLOAD_MB` each. Each file gets a progress line (parsing, embedding N chunks, then indexed with section and chunk counts). The **Add a web page** button or the `/url` command indexes a URL.
+- **Settings panel.** Pick or create a knowledge base, restrict search to chosen documents, set top-k, switch hybrid search, multi-query, HyDE, reranking and self-correction on or off, and choose a concise or detailed answer style.
+- **Modes.** The chat profiles *Q&A*, *Summarize* and *Compare* force the agent's route. Each mode shows starter questions for the documents you have.
+- **Transparent pipeline.** Every agent node appears as a timed step under one *Pipeline* entry. The steps show the route and standalone question, the search queries, the hybrid candidates (dense, BM25 and RRF ranks), the reranked passages, the grader verdicts and any regeneration.
+- **Citations.** `[n]` opens the cited section in a side panel, with the matched excerpt highlighted. For PDFs, a *PDF page N* link opens the original file at the cited page (a copy is kept in `storage/files/`).
+- **Follow-ups.** After a grounded answer, 2-3 suggested questions appear as buttons (`ENABLE_FOLLOW_UPS`).
+- **`/stats`.** Shows documents, sections, chunks and vectors for the current knowledge base, plus model usage and estimated cost since start. Cache hit rate arrives with the semantic cache.
+- **Limits.** Messages (`RATE_LIMIT_MESSAGES_PER_MINUTE`) and uploads (`RATE_LIMIT_UPLOADS_PER_HOUR`) are rate-limited per user. Logs never contain questions, answers, document text or secrets.
+- **No cold start.** The cross-encoder loads in the background when the app starts, so the first question doesn't wait for it.
+
+Resumed chats keep their text and sources list but not the side panels. Chainlit only persists elements when a blob storage provider (S3, GCS or Azure) is configured.
 
 ### Models
 

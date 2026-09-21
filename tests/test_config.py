@@ -112,3 +112,9 @@ def test_env_file_with_bom_is_read(tmp_path: Path) -> None:
     env = tmp_path / ".env"
     env.write_bytes("\ufeffGENERATION_MODEL=from-bom-file\n".encode())
     assert Settings(_env_file=env).generation_model == "from-bom-file"  # type: ignore[call-arg]
+
+
+def test_kept_pdf_location(make_settings: Callable[..., Settings], tmp_path: Path) -> None:
+    settings = make_settings(storage_dir=tmp_path / "storage")
+    assert settings.files_dir == tmp_path / "storage" / "files"
+    assert settings.source_file_path("kb", "abc123") == settings.files_dir / "kb" / "abc123.pdf"

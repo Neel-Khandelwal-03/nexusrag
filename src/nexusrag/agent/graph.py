@@ -88,6 +88,10 @@ from nexusrag.store.registry import DocumentRecord
 log = get_logger(__name__)
 
 StepCallback = Callable[[AgentStep], Awaitable[None]]
+NodeStartCallback = Callable[[str], Awaitable[None]]
+
+#: Rows of the ranking tables attached to retrieval steps (keeps step payloads small).
+TRACE_ROWS = 8
 
 #: Hard stop for runaway loops; the longest legitimate path is about 10 steps.
 MAX_STEPS = 20
@@ -126,6 +130,8 @@ class AgentRequest:
     #: Force summarize/compare (chat profiles). Greetings still get a chitchat reply.
     mode: Route | None = None
     self_correct: bool = True
+    #: Documents the user just uploaded: what "this file" or "this project" refers to.
+    recent_doc_ids: Sequence[str] = ()
 
 
 @dataclass
@@ -202,6 +208,27 @@ def merge_round_robin(
     return merged[:limit]
 
 
+def _trace_row(rc: RetrievedChunk) -> dict[str, Any]:
+    """Compact, JSON-safe view of a retrieved chunk for the pipeline UI."""
+    m, s = rc.chunk.metadata, rc.scores
+    where = " · ".join(
+        part
+        for part in (
+            m.filename,
+            f"p. {m.page_start}" if m.page_start is not None else "",
+            m.section_path,
+        )
+        if part
+    )
+    return {
+        "location": where,
+        "dense_rank": s.dense_rank,
+        "bm25_rank": s.bm25_rank,
+        "rrf": round(s.rrf_score, 4) if s.rrf_score is not None else None,
+        "rerank": round(s.rerank_score, 3) if s.rerank_score is not None else None,
+    }
+
+
 def _document_listing(documents: Sequence[DocumentRecord]) -> str:
     return "\n".join(f"- {d.title} (`{d.filename}`)" for d in documents[:20])
 
@@ -256,7 +283,10 @@ class AgentGraph:
         on_token: TokenCallback | None = None,
         on_reset: ResetCallback | None = None,
         on_step: StepCallback | None = None,
+        on_node_start: NodeStartCallback | None = None,
     ) -> AgentResult:
+        """Run the state machine. ``on_node_start`` fires before each node and ``on_step``
+        after it, so a UI can show a step as running and then fill in its result."""
         documents = await asyncio.to_thread(self.stores.registry.list_documents, request.collection)
         state = AgentState(
             request=request, documents=documents, callbacks=_Callbacks(on_token, on_reset)
@@ -265,6 +295,8 @@ class AgentGraph:
         for _ in range(MAX_STEPS):
             if node is Node.DONE:
                 break
+            if on_node_start is not None:
+                await on_node_start(node.value)
             with timed() as t:
                 next_node, label, detail = await self._nodes[node](state)
             step = AgentStep(node=node.value, label=label, ms=t.ms, detail=detail)
@@ -318,6 +350,15 @@ class AgentGraph:
         )
         return self._documents_by_id(state, ids)
 
+    def _retrieval_filters(self, state: AgentState) -> SearchFilters | None:
+        """The UI's document filter, else the documents a question explicitly points at."""
+        request, decision = state.request, state.decision
+        if request.filters is not None and not request.filters.is_empty:
+            return request.filters
+        if decision is not None and decision.route == Route.DOC_QA and decision.doc_ids:
+            return SearchFilters(doc_ids=decision.doc_ids)
+        return request.filters
+
     def _set_closest(self, state: AgentState) -> None:
         candidates = [rc for r in state.retrievals for rc in r.candidates]
         state.closest = closest_matches(candidates, limit=3)
@@ -327,7 +368,10 @@ class AgentGraph:
     async def _route(self, state: AgentState) -> tuple[Node, str, dict[str, Any]]:
         request = state.request
         decision = await self.router.route(
-            request.question, documents=state.documents, history=request.history
+            request.question,
+            documents=state.documents,
+            history=request.history,
+            recent_doc_ids=request.recent_doc_ids,
         )
         forced = (
             request.mode in (Route.SUMMARIZE, Route.COMPARE) and decision.route != Route.CHITCHAT
@@ -428,7 +472,12 @@ class AgentGraph:
         if len(targets) < 2:
             return await self._ask_for_documents(state, "documents", "compare")
         targets = targets[: self.settings.max_compare_documents]
-        options = replace(self._options(state), top_k=self.settings.compare_top_k_per_doc)
+        # Each search is scoped to one document the user named, so the reranker only
+        # reorders: its threshold, tuned for single questions, drops sections that a
+        # multi-attribute comparison ("flight time and warranty") needs.
+        options = replace(
+            self._options(state), top_k=self.settings.compare_top_k_per_doc, rerank_threshold=0.0
+        )
         results = await asyncio.gather(
             *(
                 self.retriever.retrieve(
@@ -474,13 +523,15 @@ class AgentGraph:
         # The router already condensed the question; only let retrieval condense again when
         # routing fell back (no model output) and there is history to resolve.
         history = () if (state.decision and state.decision.from_model) else request.history
+        filters = self._retrieval_filters(state)
         result = await self.retriever.retrieve(
             state.query,
             collection=request.collection,
             history=history,
-            filters=request.filters,
+            filters=filters,
             options=options,
         )
+        scoped = filters.doc_ids if filters is not None and filters.doc_ids else []
         state.retrievals.append(result)
         if attempt == 0:
             state.chunks = list(result.chunks)
@@ -502,8 +553,12 @@ class AgentGraph:
             ),
             {
                 "query": state.query,
+                "scope": [d.filename for d in self._documents_by_id(state, scoped)],
                 "variants": result.plan.variants,
                 "reranker": result.reranker,
+                "candidates": [_trace_row(rc) for rc in result.candidates[:TRACE_ROWS]],
+                "kept": [_trace_row(rc) for rc in result.chunks],
+                "timings": {t.stage: round(t.ms, 1) for t in result.timings},
                 "passages": [p.to_citation().location for p in state.passages],
             },
         )

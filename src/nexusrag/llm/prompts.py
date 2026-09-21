@@ -124,22 +124,26 @@ of documents. Classify the latest user message into exactly one route:
 - "summarize_document": the user wants a summary or overview of one specific document.
 - "compare_documents": the user wants two or more documents, or the things they describe
   (e.g. two products that each have their own document), compared or contrasted.
-- "chitchat": greetings, thanks, small talk, or questions about the assistant itself
-  ("what can you do?").
+- "chitchat": only greetings, thanks, small talk, or questions addressed to the assistant
+  as "you" ("what can you do?", "who built you?"). A message that mentions "this project",
+  "this document", "this file", "this report" or "this paper" is never chitchat: it asks
+  about the user's documents (doc_qa, or summarize_document when one document is meant).
 - "out_of_scope": requests with no connection to the documents' subject matter that need
   outside knowledge or a different kind of task (general trivia, coding help, creative
   writing, current events, the weather).
 
 Also return:
-- "documents": for summarize_document and compare_documents, the catalog numbers of the
-  documents the user means (use the conversation to resolve "it" or "the other one");
-  otherwise an empty list.
+- "documents": the catalog numbers of the documents the user means (use the conversation
+  to resolve "it" or "the other one"). Required for summarize_document and
+  compare_documents. For doc_qa, fill it only when the message clearly points at specific
+  documents (by name, or "this file"); otherwise leave it empty so everything is searched.
+  For other routes, an empty list.
 - "standalone_question": the latest message rewritten so it can be understood without the
   conversation (resolve pronouns and references; keep names and numbers exactly). If it is
   already standalone, repeat it unchanged.
 - "reason": a few words explaining the route.
 
-Document catalog:
+Document catalog:{recent_note}
 {catalog}
 
 <history>
@@ -268,6 +272,21 @@ COMPARE_USER = """\
 
 Comparison request: {question}
 Answer style: {style}"""
+
+# --------------------------------------------------------------------------- follow-ups
+
+FOLLOW_UP_PROMPT = """\
+A user asked a question about their documents and got the answer below. Suggest {n} short
+follow-up questions (under 12 words each) the user is likely to ask next and that these
+documents could answer: go deeper, compare, or ask about a related detail. Do not repeat the
+original question, and don't ask about anything the passages don't mention.
+
+Documents consulted: {documents}
+
+Question: {question}
+
+Answer:
+{answer}"""
 
 # --------------------------------------------------------------------------- reranking
 

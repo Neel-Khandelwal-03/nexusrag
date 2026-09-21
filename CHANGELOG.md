@@ -66,6 +66,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Summaries (single pass, or map-reduce for large documents with passage markers preserved) and comparisons (per-document retrieval, globally numbered passages, cited table).
   - Refusals carry `closest_matches`. `Answer` now also carries `steps` and `grounded`, and chat profiles can force summarize/compare via `mode`.
   - `RAGService.ask()` delegates to the agent. `AskResult` exposes every retrieval and the final context passages.
+- Full chat experience (phase 6):
+  - Password login (`AUTH_USERNAME`/`AUTH_PASSWORD`, constant-time comparison; fails closed in staging/production), with a session-signing secret generated for local runs only.
+  - Persistent chat history on a SQLite schema for Chainlit's SQLAlchemy data layer: resumable threads, follow-up context rebuilt from the saved messages, and thumbs up/down feedback.
+  - Drag-and-drop uploads with per-file progress (parsing, embedding, then indexed with section and chunk counts), checked server-side for type, size and count. Web pages can be added with a button or the `/url` command.
+  - Settings panel: knowledge base selector, a field that creates a new knowledge base, a document filter, top-k, stage toggles (hybrid, multi-query, HyDE, rerank, self-correction) and answer style.
+  - Chat profiles Q&A, Summarize and Compare, each with starter questions matched to the indexed documents.
+  - Each agent node is shown as a timed step nested under one *Pipeline* step: route, standalone question, hybrid candidates and reranked passages as rank tables, grader verdicts. `AgentGraph.run()` gained an `on_node_start` callback.
+  - PDF citations link to the original file at the cited page. Ingested PDFs are copied to `storage/files/`, backfilled for PDFs indexed earlier, and removed with the document.
+  - Suggested follow-up questions as buttons after grounded answers (`ENABLE_FOLLOW_UPS`; one fast-model call).
+  - `/stats` command (`RAGService.stats()`): documents, sections, chunks, vectors, model usage and cost.
+  - Per-user rate limits for messages and uploads, and a friendly message instead of raw errors if a UI callback fails.
+  - The cross-encoder is loaded in the background at startup (`RAGService.warm_up()`), and its load time is logged.
+- "What is this project about?" right after an upload now answers from the uploaded file. It had been routed to chitchat and described the assistant instead. Just-uploaded documents are marked in the router's catalog so "this file/project" resolves to them. "This project/document/…" questions are never chitchat. A doc_qa question aimed at specific documents searches only those documents (the UI document filter still takes precedence), and the retrieve step shows the scope.
+- Comparisons no longer drop sections below the rerank threshold. Each search is scoped to a named document, and on a multi-attribute question ("flight time and warranty") the threshold had discarded the performance tables. `RetrievalOptions.rerank_threshold` allows a per-request override.
+- Tests no longer read the developer's `.env` when Chainlit is imported, and every settings variable is cleared from the test environment.
 - Retrieval fixes found in live testing:
   - The final order now fuses the hybrid ranking with the reranker's ranking (RRF, `RERANK_FUSION_WEIGHT`). Pure reranking had buried a table that BM25, dense search and fusion all ranked #1; on the calibration questions, target-in-top-5 went from 10 to 11 of 12, with no rank worse.
   - The router no longer guesses whether the documents cover a question: company questions go to doc_qa, which gives grounded refusals.

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -13,18 +14,15 @@ from nexusrag.config import Settings, get_settings
 from nexusrag.llm.gemini_client import GeminiClient
 from tests.fakes import FakeGenAI
 
+# Importing chainlit loads ./.env into os.environ; point it at a file that doesn't exist.
+os.environ["CHAINLIT_ENV_FILE"] = ".env.not-loaded-in-tests"
+
 # Environment variables that would leak a developer's local config into tests.
 _ISOLATED_ENV = (
+    *(name.upper() for name in Settings.model_fields),
     "GEMINI_API_KEY",
     "GOOGLE_API_KEY",
-    "GENERATION_MODEL",
-    "FAST_MODEL",
-    "EMBEDDING_MODEL",
-    "EMBEDDING_DIM",
-    "LOG_CONTENT",
-    "STORAGE_DIR",
-    "DATA_DIR",
-    "DEFAULT_COLLECTION",
+    "CHAINLIT_AUTH_SECRET",
 )
 
 

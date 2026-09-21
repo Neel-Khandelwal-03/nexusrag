@@ -15,6 +15,7 @@ from nexusrag.ingestion.pipeline import IngestionPipeline
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.llm.prompts import REFUSAL_MESSAGE
 from nexusrag.models import AgentStep, Route, SearchFilters
+from nexusrag.retrieval.retriever import RetrievalOptions
 from nexusrag.service import RAGService
 from nexusrag.store import Stores
 from tests.fakes import FakeGenAI, json_response, keyword_embedder, make_response, router_response
@@ -135,6 +136,7 @@ class UI:
         self.text = ""
         self.resets = 0
         self.steps: list[AgentStep] = []
+        self.started: list[str] = []
 
     async def token(self, t: str) -> None:
         self.text += t
@@ -144,10 +146,19 @@ class UI:
         self.resets += 1
 
     async def step(self, s: AgentStep) -> None:
+        assert self.started[-1] == s.node  # every step was announced before it ran
         self.steps.append(s)
 
+    async def start(self, node: str) -> None:
+        self.started.append(node)
+
     def kwargs(self) -> dict[str, Any]:
-        return {"on_token": self.token, "on_reset": self.reset, "on_step": self.step}
+        return {
+            "on_token": self.token,
+            "on_reset": self.reset,
+            "on_step": self.step,
+            "on_node_start": self.start,
+        }
 
 
 # --------------------------------------------------------------------------- simple routes
@@ -203,6 +214,13 @@ async def test_doc_qa_happy_path(
         "check_groundedness",
     ]
     assert [s.node for s in ui.steps] == nodes(answer.steps)  # streamed to the UI as they happen
+    assert ui.started == nodes(answer.steps)
+    # The retrieve step carries the rankings the UI shows as tables.
+    detail = answer.steps[1].detail
+    assert set(detail["candidates"][0]) == {"location", "dense_rank", "bm25_rank", "rrf", "rerank"}
+    assert detail["kept"][0]["location"].startswith("aurora.md")
+    assert detail["timings"]
+    assert all(isinstance(v, float) for v in detail["timings"].values())
     assert answer.grounded is True
     assert answer.citations[0].index == 1
     assert ui.text == "A full charge takes 75 minutes [1]."
@@ -468,6 +486,58 @@ async def test_compare_retrieves_each_document_separately(
     assert '<document title="Aurora Spec" file="aurora.md">' in prompt
     assert '<document title="Borealis Sheet" file="borealis.md">' in prompt
     assert {c.filename for c in answer.citations} <= {"aurora.md", "borealis.md"}
+
+
+async def test_question_about_a_specific_document_searches_only_that_document(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    policy = next(d for d in service.stores.registry.list_documents("default")
+                  if d.filename == "policy.md")  # fmt: skip
+    script.add("route", router_response("doc_qa", "What is the policy about?", documents=[1]))
+    script.add("relevance", json_response(sufficient=True))
+    script.add("grounded", json_response(grounded=True, unsupported_claims=[]))
+    stream(fake_genai, "It covers a home office stipend [1].")
+    result = await service.ask("what is this file about?", recent_doc_ids=[policy.doc_id])
+    assert "1. Remote Work Policy (policy.md) [just uploaded]" in script.prompts["route"][0]
+    retrieve = result.answer.steps[1]
+    assert retrieve.detail["scope"] == ["policy.md"]
+    assert {rc.chunk.metadata.filename for rc in result.retrievals[0].chunks} == {"policy.md"}
+
+
+async def test_ui_document_filter_wins_over_the_router(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    docs = {d.filename: d.doc_id for d in service.stores.registry.list_documents("default")}
+    script.add("route", router_response("doc_qa", "How long is the flight time?", documents=[3]))
+    script.add("relevance", json_response(sufficient=True))
+    script.add("grounded", json_response(grounded=True, unsupported_claims=[]))
+    stream(fake_genai, "46 minutes [1].")
+    result = await service.ask(
+        "How long is the flight time?", filters=SearchFilters(doc_ids=[docs["aurora.md"]])
+    )
+    assert result.answer.steps[1].detail["scope"] == ["aurora.md"]
+
+
+async def test_compare_does_not_drop_passages_below_the_rerank_threshold(
+    service: RAGService, fake_genai: FakeGenAI, script: Script, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[RetrievalOptions] = []
+    original = service.retriever.retrieve
+
+    async def spy(*args: Any, **kwargs: Any) -> Any:
+        seen.append(kwargs["options"])
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(service.retriever, "retrieve", spy)
+    script.add(
+        "route",
+        router_response("compare_documents", "Compare flight time and warranty", documents=[1, 2]),
+    )
+    script.add("grounded", json_response(grounded=True))
+    stream(fake_genai, "Aurora: 46 min [1]. Borealis: 95 min [2].")
+    await service.ask("Compare flight time and warranty")
+    assert [o.rerank_threshold for o in seen] == [0.0, 0.0]
+    assert {o.top_k for o in seen} == {service.settings.compare_top_k_per_doc}
 
 
 async def test_compare_needs_two_documents(

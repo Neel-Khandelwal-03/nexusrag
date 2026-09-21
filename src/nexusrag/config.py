@@ -150,6 +150,8 @@ class Settings(BaseSettings):
     cache_similarity_threshold: float = Field(default=0.95, gt=0.0, le=1.0)
 
     # ------------------------------------------------------------------ UI / security
+    # Suggest follow-up questions (one fast-model call) after grounded answers.
+    enable_follow_ups: bool = True
     auth_username: str = "admin"
     auth_password: SecretStr | None = None
     max_upload_files: int = Field(default=10, ge=1)
@@ -193,6 +195,15 @@ class Settings(BaseSettings):
     def sqlite_path(self) -> Path:
         """SQLite file for the document registry, parent sections and BM25 token lists."""
         return self.storage_dir / "nexusrag.db"
+
+    @property
+    def files_dir(self) -> Path:
+        """Copies of ingested PDFs, used to preview cited pages in the UI."""
+        return self.storage_dir / "files"
+
+    def source_file_path(self, collection: str, doc_id: str) -> Path:
+        """Where the preview copy of a document's PDF is kept."""
+        return self.files_dir / collection / f"{doc_id}.pdf"
 
     @property
     def chat_db_path(self) -> Path:

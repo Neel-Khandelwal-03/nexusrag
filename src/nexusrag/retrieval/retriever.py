@@ -62,6 +62,8 @@ class RetrievalOptions:
     num_variants: int = 3
     hyde: bool = False
     rerank: bool = True
+    #: Overrides ``RERANK_THRESHOLD`` (None keeps the setting; 0 reorders without dropping).
+    rerank_threshold: float | None = None
 
     @classmethod
     def from_settings(cls, settings: Settings, **overrides: Any) -> RetrievalOptions:
@@ -169,6 +171,15 @@ class Retriever:
         self.searcher = HybridSearcher(settings, gemini, stores)
         self.reranker = reranker or build_reranker(settings, gemini)
 
+    def warm_up(self) -> None:
+        """Load slow models (the local cross-encoder) now rather than on the first query.
+
+        Blocking: call it from a worker thread at app startup.
+        """
+        warm = getattr(self.reranker, "warm_up", None)
+        if warm is not None and self.settings.enable_rerank:
+            warm()
+
     async def retrieve(
         self,
         question: str,
@@ -211,7 +222,9 @@ class Retriever:
                         plan.standalone,
                         hybrid.candidates,
                         top_k=opts.top_k,
-                        threshold=s.rerank_threshold,
+                        threshold=s.rerank_threshold
+                        if opts.rerank_threshold is None
+                        else opts.rerank_threshold,
                         max_candidates=s.rerank_candidates,
                         fusion_weight=s.rerank_fusion_weight,
                         rrf_k=s.rrf_k,

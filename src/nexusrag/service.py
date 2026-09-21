@@ -11,7 +11,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from nexusrag.agent.graph import AgentGraph, AgentRequest, AgentResult, StepCallback
+from nexusrag.agent.graph import (
+    AgentGraph,
+    AgentRequest,
+    AgentResult,
+    NodeStartCallback,
+    StepCallback,
+)
 from nexusrag.config import Settings, get_settings
 from nexusrag.generation.answer import (
     AnswerGenerator,
@@ -20,15 +26,39 @@ from nexusrag.generation.answer import (
     TokenCallback,
 )
 from nexusrag.llm.gemini_client import GeminiClient
-from nexusrag.llm.usage import track_usage
+from nexusrag.llm.usage import process_usage, track_usage
 from nexusrag.log import get_logger, request_context, timed
-from nexusrag.models import Answer, ChatTurn, ContextPassage, Route, SearchFilters, StageTiming
+from nexusrag.models import (
+    Answer,
+    ChatTurn,
+    ContextPassage,
+    Route,
+    SearchFilters,
+    StageTiming,
+    UsageStats,
+)
 from nexusrag.retrieval.reranker import Reranker
 from nexusrag.retrieval.retriever import RetrievalOptions, RetrievalResult, Retriever
 from nexusrag.store import Stores
-from nexusrag.store.registry import validate_collection_name
+from nexusrag.store.registry import DocumentRecord, validate_collection_name
 
 log = get_logger(__name__)
+
+
+@dataclass
+class KnowledgeBaseStats:
+    """What ``/stats`` reports."""
+
+    collection: str
+    documents: list[DocumentRecord]
+    parents: int
+    chunks: int
+    vectors: int
+    collections: list[str]
+    usage: UsageStats
+    #: Filled in once the semantic cache exists (phase 7).
+    cache_hits: int | None = None
+    cache_lookups: int | None = None
 
 
 @dataclass
@@ -83,15 +113,19 @@ class RAGService:
         style: AnswerStyle = "detailed",
         mode: Route | None = None,
         self_correct: bool | None = None,
+        recent_doc_ids: Sequence[str] = (),
         on_token: TokenCallback | None = None,
         on_reset: ResetCallback | None = None,
         on_step: StepCallback | None = None,
+        on_node_start: NodeStartCallback | None = None,
         request_id: str | None = None,
     ) -> AskResult:
         """Answer ``question``, streaming tokens to ``on_token`` and steps to ``on_step``.
 
         ``mode`` forces the summarize/compare routes (chat profiles). ``self_correct``
         overrides ``ENABLE_SELF_CORRECTION`` for this request (used by the evaluation).
+        ``recent_doc_ids`` are documents the user just uploaded, so "what is this file
+        about?" resolves to them.
         """
         kb = validate_collection_name(collection or self.settings.default_collection)
         request = AgentRequest(
@@ -105,6 +139,7 @@ class RAGService:
             self_correct=self.settings.enable_self_correction
             if self_correct is None
             else self_correct,
+            recent_doc_ids=recent_doc_ids,
         )
         with (
             request_context(request_id, collection=kb) as rid,
@@ -112,7 +147,11 @@ class RAGService:
             timed() as total,
         ):
             result = await self.agent.run(
-                request, on_token=on_token, on_reset=on_reset, on_step=on_step
+                request,
+                on_token=on_token,
+                on_reset=on_reset,
+                on_step=on_step,
+                on_node_start=on_node_start,
             )
             totals = usage.totals()
             log.info(
@@ -144,6 +183,24 @@ class RAGService:
         )
         return AskResult(
             answer=answer, retrievals=result.retrievals, passages=result.passages, agent=result
+        )
+
+    def warm_up(self) -> None:
+        """Load slow models ahead of the first question (blocking; run in a thread)."""
+        self.retriever.warm_up()
+
+    def stats(self, collection: str | None = None) -> KnowledgeBaseStats:
+        """Counts for the ``/stats`` command."""
+        kb = validate_collection_name(collection or self.settings.default_collection)
+        documents = self.stores.registry.list_documents(kb)
+        return KnowledgeBaseStats(
+            collection=kb,
+            documents=documents,
+            parents=self.stores.parents.count(kb),
+            chunks=sum(d.num_chunks for d in documents),
+            vectors=self.stores.vectors.count(kb),
+            collections=[c.name for c in self.stores.registry.list_collections()],
+            usage=process_usage(),
         )
 
     def close(self) -> None:
