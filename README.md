@@ -22,6 +22,41 @@ Planned capabilities:
 - **Semantic cache** for near-duplicate questions.
 - **Evaluation suite** covering hit@k, MRR, context precision/recall, faithfulness, answer relevance, refusal rate, latency and cost.
 
+## Local development
+
+Requires Python 3.11+.
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
+pip install -e ".[dev]"
+cp .env.example .env          # then set GEMINI_API_KEY
+```
+
+Check your Gemini key and model names with a few real, cheap API calls:
+
+```bash
+python scripts/smoke_gemini.py
+```
+
+Run the quality gates. CI runs the same commands, with Gemini mocked:
+
+```bash
+ruff check . && ruff format --check . && mypy && pytest
+```
+
+### Models
+
+All model IDs are configured via environment variables (see [.env.example](.env.example)):
+
+| Role | Default | Used for |
+|------|---------|----------|
+| `GENERATION_MODEL` | `gemini-3.8-flash` | User-facing answers (streamed) |
+| `FAST_MODEL` | `gemini-3.5-flash-lite` | Query rewriting, routing, grading |
+| `EMBEDDING_MODEL` | `gemini-embedding-2` (768-d) | Chunk and query embeddings |
+
+`gemini-embedding-2` has no `task_type` parameter. Queries are embedded as `task: search result | query: …` and documents as `title: … | text: …`, following Google's guidance for asymmetric retrieval. Temperature is left at the Gemini 3 default unless you set it explicitly.
+
 ## Branching model
 
 | Branch      | Purpose                                                        |
