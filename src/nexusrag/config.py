@@ -150,6 +150,8 @@ class Settings(BaseSettings):
     cache_similarity_threshold: float = Field(default=0.95, gt=0.0, le=1.0)
 
     # ------------------------------------------------------------------ UI / security
+    # Suggest follow-up questions (one fast-model call) after grounded answers.
+    enable_follow_ups: bool = True
     auth_username: str = "admin"
     auth_password: SecretStr | None = None
     max_upload_files: int = Field(default=10, ge=1)

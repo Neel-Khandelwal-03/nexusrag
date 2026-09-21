@@ -269,6 +269,21 @@ COMPARE_USER = """\
 Comparison request: {question}
 Answer style: {style}"""
 
+# --------------------------------------------------------------------------- follow-ups
+
+FOLLOW_UP_PROMPT = """\
+A user asked a question about their documents and got the answer below. Suggest {n} short
+follow-up questions (under 12 words each) the user is likely to ask next and that these
+documents could answer: go deeper, compare, or ask about a related detail. Do not repeat the
+original question, and don't ask about anything the passages don't mention.
+
+Documents consulted: {documents}
+
+Question: {question}
+
+Answer:
+{answer}"""
+
 # --------------------------------------------------------------------------- reranking
 
 RERANK_PROMPT = """\
