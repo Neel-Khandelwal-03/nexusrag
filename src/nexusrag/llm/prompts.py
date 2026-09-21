@@ -80,3 +80,42 @@ ANSWER_USER = """\
 Answer style: {style}
 
 Question: {question}"""
+
+# --------------------------------------------------------------------------- query transformation
+
+CONDENSE_PROMPT = """\
+Rewrite the user's latest message as a standalone search question that can be understood
+without the conversation. Resolve pronouns and references ("it", "that model", "the second
+one") using the history. Keep names, numbers and technical terms exactly as written. If the
+message is already standalone, return it unchanged. Do not answer the question.
+
+<history>
+{history}
+</history>
+
+Latest message: {question}"""
+
+MULTI_QUERY_PROMPT = """\
+Write {n} alternative search queries for retrieving document passages that answer the
+question below. Each query should use different wording or focus on a different aspect
+(synonyms, likely section names, key entities), while keeping the same meaning. Keep product
+names, codes and numbers exactly as written. Do not answer the question.
+
+Question: {question}"""
+
+HYDE_PROMPT = """\
+Write a short passage (60-120 words) in the style of a technical document or policy that would
+directly answer the question below. Invent plausible specifics if needed: the passage is only
+used to find similar real passages and is never shown to the user.
+
+Question: {question}"""
+
+# --------------------------------------------------------------------------- reranking
+
+RERANK_PROMPT = """\
+Rate how useful each passage is for answering the query, from 0 (irrelevant) to 10 (directly
+answers it). Judge only relevance, not writing quality. Return a score for every passage id.
+
+Query: {query}
+
+{passages}"""
