@@ -32,6 +32,7 @@ class ModelPrice(BaseModel):
 DEFAULT_PRICES: dict[str, ModelPrice] = {
     "gemini-3.8-flash": ModelPrice(input_per_m=0.75, output_per_m=3.75),
     "gemini-3.7-flash": ModelPrice(input_per_m=0.75, output_per_m=3.75),
+    "gemini-3.6-flash": ModelPrice(input_per_m=0.75, output_per_m=3.75),
     "gemini-3.5-flash-lite": ModelPrice(input_per_m=0.30, output_per_m=2.50),
     "gemini-3.1-flash-lite": ModelPrice(input_per_m=0.25, output_per_m=1.50),
     "gemini-2.5-flash": ModelPrice(input_per_m=0.30, output_per_m=2.50),
@@ -74,7 +75,7 @@ class Settings(BaseSettings):
     fast_model: str = "gemini-3.5-flash-lite"
     # Used when the primary model is still overloaded (429/5xx) after retries, or is gone
     # (404). "none" disables fallback for that role.
-    generation_fallback_model: str | None = "gemini-3.7-flash"
+    generation_fallback_model: str | None = "gemini-3.6-flash"
     fast_fallback_model: str | None = "gemini-3.1-flash-lite"
     embedding_model: str = "gemini-embedding-2"
     embedding_dim: int = Field(default=768, ge=128, le=3072)
@@ -126,6 +127,9 @@ class Settings(BaseSettings):
     rerank_candidates: int = Field(default=20, ge=1, le=200)
     # Calibrated on the sample corpus: weakest real evidence ~0.23, unanswerable questions <= 0.07.
     rerank_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
+    # Weight of the first-stage (hybrid) ranking when fusing it with the reranker order
+    # (RRF). 0 = pure reranker order. See retrieval/reranker.py for the evidence.
+    rerank_fusion_weight: float = Field(default=1.0, ge=0.0, le=5.0)
     context_token_budget: int = Field(default=6000, ge=500)
     # Previous chat messages (user + assistant) used to condense follow-up questions.
     history_turns: int = Field(default=6, ge=0, le=50)
@@ -133,6 +137,13 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ agent
     enable_self_correction: bool = True
     max_retrieval_retries: int = Field(default=2, ge=0, le=5)
+    # Summaries: documents up to this many tokens are summarised in one call; larger ones
+    # use map-reduce over batches of this size.
+    summary_stuff_tokens: int = Field(default=12000, ge=1000)
+    summary_map_batch_tokens: int = Field(default=6000, ge=500)
+    # Comparisons: chunks retrieved per document, and the most documents compared at once.
+    compare_top_k_per_doc: int = Field(default=4, ge=1, le=20)
+    max_compare_documents: int = Field(default=4, ge=2, le=8)
 
     # ------------------------------------------------------------------ cache
     enable_semantic_cache: bool = True

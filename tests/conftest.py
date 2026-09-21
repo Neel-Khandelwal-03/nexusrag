@@ -30,12 +30,18 @@ _ISOLATED_ENV = (
 
 @pytest.fixture(autouse=True)
 def _isolate(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Block real SDK clients, strip developer env vars and reset logging for every test."""
+    """Block real SDK clients and model downloads, strip developer env vars, reset logging."""
 
     def _forbidden(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("Tests must not construct a real google.genai.Client")
 
     monkeypatch.setattr("nexusrag.llm.gemini_client.genai.Client", _forbidden)
+
+    def _no_model_download(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("Tests must not load the real cross-encoder (inject a fake reranker)")
+
+    monkeypatch.setattr("nexusrag.retrieval.reranker._load_cross_encoder", _no_model_download)
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     for name in _ISOLATED_ENV:
         monkeypatch.delenv(name, raising=False)
     get_settings.cache_clear()
@@ -62,6 +68,8 @@ def make_settings() -> Callable[..., Settings]:
             # Fallback models are opted into by the tests that exercise them.
             "generation_fallback_model": None,
             "fast_fallback_model": None,
+            # The agent's graders are opted into by the tests that exercise them.
+            "enable_self_correction": False,
         }
         values.update(overrides)
         return Settings(_env_file=None, **values)  # type: ignore[call-arg]

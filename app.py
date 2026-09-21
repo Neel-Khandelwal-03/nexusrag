@@ -2,9 +2,10 @@
 
 Run with:  chainlit run app.py
 
-Phase 3 scope: a minimal chat that streams grounded answers and shows each cited
-source in a side panel. Uploads, settings, profiles, visible pipeline steps,
-authentication and persistent history arrive in phase 6.
+A minimal chat over the self-correcting agent. It streams grounded answers, shows each
+cited source (or the closest matches, when refusing) in a side panel, and lists the
+agent's steps. Uploads, settings, profiles, rich pipeline steps, authentication and
+persistent history arrive in phase 6.
 """
 
 from __future__ import annotations
@@ -16,10 +17,12 @@ import chainlit as cl
 from nexusrag.config import get_settings
 from nexusrag.llm.gemini_client import GeminiError
 from nexusrag.log import configure_logging, get_logger
-from nexusrag.models import ChatTurn
+from nexusrag.models import AgentStep, ChatTurn
 from nexusrag.service import RAGService
 from nexusrag.ui.render import (
     citation_element_name,
+    closest_matches_footer,
+    match_element_name,
     setup_error_markdown,
     source_panel_markdown,
     sources_footer,
@@ -67,9 +70,15 @@ async def on_message(message: cl.Message) -> None:
     reply = cl.Message(content="")
 
     async def reset_reply() -> None:
-        # The model failed mid-answer and is regenerating: clear the partial text.
+        # The agent is regenerating (model failure or failed groundedness check): clear
+        # the draft the user already saw.
         reply.content = ""
         await reply.update()
+
+    async def show_step(step: AgentStep) -> None:
+        # Minimal pipeline trace; phase 6 replaces this with timed, nested steps.
+        async with cl.Step(name=step.node, type="tool") as ui_step:
+            ui_step.output = f"{step.label} ({step.ms:.0f} ms)"
 
     try:
         result = await service.ask(
@@ -77,6 +86,7 @@ async def on_message(message: cl.Message) -> None:
             history=history,
             on_token=reply.stream_token,
             on_reset=reset_reply,
+            on_step=show_step,
         )
     except GeminiError as exc:
         reply.content = f"⚠️ {exc.user_message}"
@@ -99,10 +109,11 @@ async def on_message(message: cl.Message) -> None:
     cl.user_session.set("history", history[-keep:] if keep else [])
 
     reply.content = answer.text
+    # Chainlit types `elements` with a TypeVar, so annotate the list explicitly.
+    elements: list[Any] = []
     if answer.citations:
         reply.content += "\n\n" + sources_footer(answer.citations)
-        # Chainlit types `elements` with a TypeVar, so annotate the list explicitly.
-        elements: list[Any] = [
+        elements += [
             cl.Text(
                 name=citation_element_name(citation),
                 content=source_panel_markdown(citation),
@@ -110,5 +121,15 @@ async def on_message(message: cl.Message) -> None:
             )
             for citation in answer.citations
         ]
-        reply.elements = elements
+    if answer.closest_matches:
+        reply.content += "\n\n" + closest_matches_footer(answer.closest_matches)
+        elements += [
+            cl.Text(
+                name=match_element_name(match),
+                content=source_panel_markdown(match),
+                display="side",
+            )
+            for match in answer.closest_matches
+        ]
+    reply.elements = elements
     await reply.send()

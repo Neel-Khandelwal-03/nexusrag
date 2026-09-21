@@ -213,6 +213,8 @@ class Retriever:
                         top_k=opts.top_k,
                         threshold=s.rerank_threshold,
                         max_candidates=s.rerank_candidates,
+                        fusion_weight=s.rerank_fusion_weight,
+                        rrf_k=s.rrf_k,
                     )
                     reranker_name = self.reranker.name
                 except Exception as exc:

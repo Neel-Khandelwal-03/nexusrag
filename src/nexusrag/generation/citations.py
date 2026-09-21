@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Collection, Sequence
 
-from nexusrag.models import Citation, ContextPassage
+from nexusrag.models import Citation, ContextPassage, RetrievedChunk
 
 # [1]  [1, 2]  [1,2,3]  [2-4]  [2–4]; up to 3 digits so years like [2026] aren't matched.
 MARKER_RE = re.compile(r"\[(\d{1,3}(?:\s*[,\-–]\s*\d{1,3})*)\]")
@@ -64,3 +64,41 @@ def build_citations(text: str, passages: Sequence[ContextPassage]) -> list[Citat
     """Citations for the passages actually cited in ``text``, in order of first mention."""
     by_index = {p.index: p for p in passages}
     return [by_index[n].to_citation() for n in cited_indices(text) if n in by_index]
+
+
+def citation_from_chunk(rc: RetrievedChunk, index: int) -> Citation:
+    """A citation pointing at a single retrieved chunk (used for "closest matches")."""
+    m = rc.chunk.metadata
+    return Citation(
+        index=index,
+        parent_id=m.parent_id,
+        doc_id=m.doc_id,
+        filename=m.filename,
+        source_type=m.source_type,
+        title=m.title,
+        section_path=m.section_path,
+        page_start=m.page_start,
+        page_end=m.page_end,
+        text=rc.chunk.text,
+        chunk_ids=[rc.chunk.chunk_id],
+        highlights=[rc.chunk.text],
+    )
+
+
+def closest_matches(candidates: Sequence[RetrievedChunk], limit: int = 3) -> list[Citation]:
+    """The best candidates by rerank score (falling back to RRF), deduplicated by chunk."""
+    seen: set[str] = set()
+    unique = []
+    for rc in candidates:
+        if rc.chunk.chunk_id not in seen:
+            seen.add(rc.chunk.chunk_id)
+            unique.append(rc)
+    ranked = sorted(
+        unique,
+        key=lambda rc: (
+            rc.scores.rerank_score if rc.scores.rerank_score is not None else -1.0,
+            rc.scores.rrf_score or 0.0,
+        ),
+        reverse=True,
+    )
+    return [citation_from_chunk(rc, i) for i, rc in enumerate(ranked[:limit], start=1)]

@@ -58,3 +58,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Retry defaults tuned for interactive latency: 3 attempts per model, backoff capped at 8 s.
   - The SDK's automatic function calling is disabled (we never pass tools), which removes a warning and an INFO log line on every call.
   - `.env.example` keeps only secrets active, with every tunable commented out, so a copied `.env` no longer pins old defaults. `.env` is read BOM-tolerantly for Windows editors.
+- Self-correcting agent (phase 5):
+  - Hand-written state machine (`agent/graph.py`) with recorded steps. Every node emits an `AgentStep` for the UI and logs, and a hard step budget guards against loops.
+  - Router: one fast-model structured call returns the route (chitchat, doc_qa, summarize_document, compare_documents or out_of_scope), catalog-resolved target documents and the condensed standalone question, so retrieval doesn't condense separately. Greetings skip the model, and failures default to doc_qa.
+  - Relevance grader: rewrites the query and retries up to `MAX_RETRIEVAL_RETRIES`, merging attempts round-robin. It stops early when a rewrite finds nothing.
+  - Groundedness grader: an unsupported answer is regenerated once with the claims called out (the UI draft is reset). If still unsupported, the agent declines and shows closest matches. Both graders fail open.
+  - Summaries (single pass, or map-reduce for large documents with passage markers preserved) and comparisons (per-document retrieval, globally numbered passages, cited table).
+  - Refusals carry `closest_matches`. `Answer` now also carries `steps` and `grounded`, and chat profiles can force summarize/compare via `mode`.
+  - `RAGService.ask()` delegates to the agent. `AskResult` exposes every retrieval and the final context passages.
+- Retrieval fixes found in live testing:
+  - The final order now fuses the hybrid ranking with the reranker's ranking (RRF, `RERANK_FUSION_WEIGHT`). Pure reranking had buried a table that BM25, dense search and fusion all ranked #1; on the calibration questions, target-in-top-5 went from 10 to 11 of 12, with no rank worse.
+  - The router no longer guesses whether the documents cover a question: company questions go to doc_qa, which gives grounded refusals.
+  - The default generation fallback is now `gemini-3.6-flash`, which Google recommends and which stayed available while 3.7 was overloaded.
+  - Tests can no longer load the real cross-encoder or reach the Hugging Face Hub, and `RAGService` accepts an injected reranker.

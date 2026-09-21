@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections import deque
 from collections.abc import AsyncIterator, Callable, Sequence
 from types import SimpleNamespace
@@ -198,3 +199,24 @@ class FakeGenAI:
 def embedded_texts(call: dict[str, Any]) -> list[str]:
     """Texts sent in an ``embed_content`` call."""
     return [content.parts[0].text for content in call["contents"]]
+
+
+def router_response(
+    route: str = "doc_qa",
+    standalone: str = "",
+    documents: Sequence[int] = (),
+    reason: str = "test",
+) -> types.GenerateContentResponse:
+    """What the router model returns (structured JSON)."""
+    payload = {
+        "route": route,
+        "documents": list(documents),
+        "standalone_question": standalone,
+        "reason": reason,
+    }
+    return make_response(json.dumps(payload))
+
+
+def json_response(**payload: Any) -> types.GenerateContentResponse:
+    """A structured-output response with the given fields."""
+    return make_response(json.dumps(payload))

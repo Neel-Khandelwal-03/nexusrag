@@ -1,16 +1,17 @@
 """Application service: one object that answers questions against a knowledge base.
 
 The UI, the ``ask`` CLI and the evaluation suite all go through :class:`RAGService`,
-so they exercise the same pipeline: retrieve (query transformation, hybrid search,
-reranking, parent expansion) -> grounded generation. The self-correcting agent
-(phase 5) sits behind the same interface.
+so they exercise the same pipeline: the self-correcting agent (routing, retrieval with
+relevance-driven retries, grounded generation with a groundedness check, and the
+summarize/compare/chitchat routes).
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from nexusrag.agent.graph import AgentGraph, AgentRequest, AgentResult, StepCallback
 from nexusrag.config import Settings, get_settings
 from nexusrag.generation.answer import (
     AnswerGenerator,
@@ -21,7 +22,8 @@ from nexusrag.generation.answer import (
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.llm.usage import track_usage
 from nexusrag.log import get_logger, request_context, timed
-from nexusrag.models import Answer, ChatTurn, Route, SearchFilters, StageTiming
+from nexusrag.models import Answer, ChatTurn, ContextPassage, Route, SearchFilters, StageTiming
+from nexusrag.retrieval.reranker import Reranker
 from nexusrag.retrieval.retriever import RetrievalOptions, RetrievalResult, Retriever
 from nexusrag.store import Stores
 from nexusrag.store.registry import validate_collection_name
@@ -31,21 +33,38 @@ log = get_logger(__name__)
 
 @dataclass
 class AskResult:
-    """An answer plus the retrieval trace behind it (for the UI and evaluation)."""
+    """An answer plus the trace behind it (for the UI and evaluation)."""
 
     answer: Answer
-    retrieval: RetrievalResult
+    #: Every retrieval the agent ran (retries, one per document for comparisons).
+    retrievals: list[RetrievalResult] = field(default_factory=list)
+    #: The context passages the final answer was generated from.
+    passages: list[ContextPassage] = field(default_factory=list)
+    agent: AgentResult | None = None
+
+    @property
+    def retrieval(self) -> RetrievalResult | None:
+        """The most recent retrieval, or None for routes that don't retrieve (chitchat)."""
+        return self.retrievals[-1] if self.retrievals else None
 
 
 class RAGService:
-    """Retrieval + grounded generation over the configured stores."""
+    """The self-correcting RAG agent over the configured stores."""
 
-    def __init__(self, settings: Settings, gemini: GeminiClient, stores: Stores) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        gemini: GeminiClient,
+        stores: Stores,
+        *,
+        reranker: Reranker | None = None,
+    ) -> None:
         self.settings = settings
         self.gemini = gemini
         self.stores = stores
-        self.retriever = Retriever(settings, gemini, stores)
+        self.retriever = Retriever(settings, gemini, stores, reranker=reranker)
         self.generator = AnswerGenerator(gemini)
+        self.agent = AgentGraph(settings, gemini, stores, self.retriever, self.generator)
 
     @classmethod
     def create(cls, settings: Settings | None = None) -> RAGService:
@@ -62,55 +81,70 @@ class RAGService:
         filters: SearchFilters | None = None,
         options: RetrievalOptions | None = None,
         style: AnswerStyle = "detailed",
+        mode: Route | None = None,
+        self_correct: bool | None = None,
         on_token: TokenCallback | None = None,
         on_reset: ResetCallback | None = None,
+        on_step: StepCallback | None = None,
         request_id: str | None = None,
     ) -> AskResult:
-        """Answer ``question`` from the documents, streaming tokens to ``on_token``."""
+        """Answer ``question``, streaming tokens to ``on_token`` and steps to ``on_step``.
+
+        ``mode`` forces the summarize/compare routes (chat profiles). ``self_correct``
+        overrides ``ENABLE_SELF_CORRECTION`` for this request (used by the evaluation).
+        """
         kb = validate_collection_name(collection or self.settings.default_collection)
+        request = AgentRequest(
+            question=question,
+            collection=kb,
+            history=history,
+            filters=filters,
+            options=options,
+            style=style,
+            mode=mode,
+            self_correct=self.settings.enable_self_correction
+            if self_correct is None
+            else self_correct,
+        )
         with (
-            request_context(request_id, collection=kb, route=Route.DOC_QA.value) as rid,
+            request_context(request_id, collection=kb) as rid,
             track_usage() as usage,
             timed() as total,
         ):
-            retrieval = await self.retriever.retrieve(
-                question, collection=kb, history=history, filters=filters, options=options
+            result = await self.agent.run(
+                request, on_token=on_token, on_reset=on_reset, on_step=on_step
             )
-            with timed() as gen:
-                # Answer the standalone question: after condensation it carries the context
-                # a follow-up like "and its warranty?" lacks.
-                generated = await self.generator.generate(
-                    retrieval.query,
-                    retrieval.passages,
-                    style=style,
-                    on_token=on_token,
-                    on_reset=on_reset,
-                )
             totals = usage.totals()
             log.info(
                 "rag.answer",
-                candidates=len(retrieval.candidates),
-                chunks=len(retrieval.chunks),
-                reranker=retrieval.reranker,
-                passages=len(retrieval.passages),
-                cited=len(generated.citations),
-                refused=generated.refused,
-                generate_ms=round(gen.ms, 1),
+                route=result.route.value,
+                steps=len(result.steps),
+                retrievals=len(result.retrievals),
+                passages=len(result.passages),
+                cited=len(result.citations),
+                refused=result.refused,
+                grounded=result.grounded,
                 total_ms=round(total.ms, 1),
+                llm_calls=totals.calls,
                 prompt_tokens=totals.prompt_tokens,
                 output_tokens=totals.output_tokens,
                 cost_usd=round(totals.cost_usd, 6),
             )
         answer = Answer(
-            text=generated.text,
-            route=Route.DOC_QA,
-            citations=generated.citations,
-            refused=generated.refused,
+            text=result.text,
+            route=result.route,
+            citations=result.citations,
+            grounded=result.grounded,
+            refused=result.refused,
+            closest_matches=result.closest_matches,
             usage=usage.totals(),
-            timings=[*retrieval.timings, StageTiming(stage="generate", ms=gen.ms)],
+            timings=[StageTiming(stage=step.node, ms=step.ms) for step in result.steps],
+            steps=result.steps,
             request_id=rid,
         )
-        return AskResult(answer=answer, retrieval=retrieval)
+        return AskResult(
+            answer=answer, retrievals=result.retrievals, passages=result.passages, agent=result
+        )
 
     def close(self) -> None:
         self.stores.close()
