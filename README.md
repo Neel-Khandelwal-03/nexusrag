@@ -100,6 +100,32 @@ pip install -e ".[rerank]" --extra-index-url https://download.pytorch.org/whl/cp
 
 Without it, or if the model can't be loaded, reranking falls back to Gemini-as-reranker automatically. Set `RERANKER_BACKEND=gemini` to use Gemini on purpose.
 
+### The self-correcting agent
+
+Each message goes through a hand-written state machine (`src/nexusrag/agent/graph.py`) rather than a framework:
+
+```mermaid
+flowchart LR
+    Q[message] --> R{router}
+    R -->|chitchat| C[short reply]
+    R -->|out of scope| O[polite decline]
+    R -->|summarize| S[map-reduce summary] --> G
+    R -->|compare| X[per-document retrieval] --> Y[side-by-side table] --> G
+    R -->|doc_qa| RT[retrieve] --> RG{relevant?}
+    RG -->|no, retries left| RW[rewrite query] --> RT
+    RG -->|yes / out of retries| A[answer] --> G{grounded?}
+    G -->|yes| D[done]
+    G -->|no, first time| RE[regenerate, stricter] --> G
+    G -->|still no| N["I couldn't find this" + closest matches]
+```
+
+- **Router.** One fast-model call with a JSON schema returns the route, the target documents (for summaries and comparisons) and the standalone form of a follow-up question. Obvious greetings skip it entirely.
+- **Relevance grader.** Checks whether the passages can answer the question. If not, it names what's missing and a better query, and the agent retries up to twice, merging new passages with the earlier ones. It stops early when a rewrite also finds nothing.
+- **Groundedness check.** Verifies every claim against the cited passages. An unsupported answer is regenerated once with the offending claims called out. If it still fails, the agent says the documents don't support an answer and shows the closest matches.
+- **Refusals never fall back on general knowledge.** They show the nearest passages instead.
+- **Summaries** go in one call for small documents and use map-reduce for large ones. **Comparisons** retrieve per document, number passages globally and produce a cited table.
+- **Switchable.** `ENABLE_SELF_CORRECTION=false` (or `self_correct=False` per request) turns both graders off; the evaluation uses this to measure what they add.
+
 Each answer is grounded in the retrieved passages:
 - The passages that survive reranking go to the answer model as numbered context.
 - Gemini streams an answer that cites every factual sentence with `[n]`. The passages are treated as untrusted data, so instructions hidden in a document are ignored.
@@ -117,7 +143,7 @@ All model IDs are configured via environment variables (see [.env.example](.env.
 | `FAST_MODEL` | `gemini-3.5-flash-lite` | Query rewriting, routing, grading |
 | `EMBEDDING_MODEL` | `gemini-embedding-2` (768-d) | Chunk and query embeddings |
 
-**Resilience.** Each call retries transient failures (429, 5xx and timeouts) up to 3 times with jittered backoff capped at 8 s. If the model is still overloaded, or returns "model not found", the call switches to `GENERATION_FALLBACK_MODEL` (`gemini-3.7-flash`) or `FAST_FALLBACK_MODEL` (`gemini-3.1-flash-lite`). An answer interrupted mid-stream is cleared and regenerated once on the fallback model. Embeddings never fall back, because another model's vectors wouldn't match the index.
+**Resilience.** Each call retries transient failures (429, 5xx and timeouts) up to 3 times with jittered backoff capped at 8 s. If the model is still overloaded, or returns "model not found", the call switches to `GENERATION_FALLBACK_MODEL` (`gemini-3.6-flash`) or `FAST_FALLBACK_MODEL` (`gemini-3.1-flash-lite`). An answer interrupted mid-stream is cleared and regenerated once on the fallback model. Embeddings never fall back, because another model's vectors wouldn't match the index.
 
 `gemini-embedding-2` has no `task_type` parameter. Queries are embedded as `task: search result | query: …` and documents as `title: … | text: …`, following Google's guidance for asymmetric retrieval. Temperature is left at the Gemini 3 default unless you set it explicitly.
 
