@@ -1,0 +1,199 @@
+"""Reranking: rescore fused candidates with a model that reads query and passage together.
+
+Embeddings and BM25 score the query and each passage *independently*, which is fast
+but coarse. A cross-encoder reads the pair jointly and judges relevance much more
+accurately, but it's too slow to run over a whole corpus. So it runs on the top few
+dozen fused candidates only, and its scores decide the final top-k.
+
+Both backends read :func:`~nexusrag.ingestion.chunker.rerank_text`, with Markdown
+tables rewritten as ``Header: value`` lines, which rerankers score far more reliably.
+
+Backends:
+
+* ``cross_encoder``: local ``BAAI/bge-reranker-base`` via sentence-transformers,
+  with sigmoid scores in [0, 1]. The model is loaded lazily on first use; install the
+  ``rerank`` extra to get it.
+* ``gemini``: the fast Gemini model rates passages 0-10 (normalised to [0, 1]). Used
+  when configured, or automatically when the local model can't be loaded (package
+  missing, no network to download weights, not enough memory).
+"""
+
+from __future__ import annotations
+
+import asyncio
+import threading
+from collections.abc import Callable, Sequence
+from typing import Any, Protocol
+
+from pydantic import BaseModel, Field
+
+from nexusrag.config import Settings
+from nexusrag.ingestion.chunker import rerank_text
+from nexusrag.llm.gemini_client import GeminiClient
+from nexusrag.llm.prompts import RERANK_PROMPT, render
+from nexusrag.log import get_logger
+from nexusrag.models import RetrievedChunk
+from nexusrag.utils.tokens import truncate_to_tokens
+
+log = get_logger(__name__)
+
+ModelLoader = Callable[[str, int], Any]
+
+
+class Reranker(Protocol):
+    """Scores candidates for a query; higher is more relevant, roughly in [0, 1]."""
+
+    @property
+    def name(self) -> str: ...
+
+    async def score(self, query: str, candidates: Sequence[RetrievedChunk]) -> list[float]: ...
+
+
+def _load_cross_encoder(model_name: str, max_length: int) -> Any:
+    # Imported lazily: torch is heavy and optional (see the `rerank` extra).
+    import torch
+    from sentence_transformers import CrossEncoder
+
+    return CrossEncoder(model_name, max_length=max_length, activation_fn=torch.nn.Sigmoid())
+
+
+class CrossEncoderReranker:
+    """Local cross-encoder, loaded once per process on first use (thread-safe)."""
+
+    name = "cross_encoder"
+
+    def __init__(
+        self,
+        model_name: str,
+        *,
+        max_length: int = 512,
+        batch_size: int = 16,
+        loader: ModelLoader | None = None,
+    ) -> None:
+        self.model_name = model_name
+        self.max_length = max_length
+        self.batch_size = batch_size
+        self._loader = loader or _load_cross_encoder
+        self._model: Any = None
+        self._lock = threading.Lock()
+
+    def load(self) -> None:
+        """Load the model now (e.g. at startup) instead of on the first query."""
+        with self._lock:
+            if self._model is None:
+                log.info("rerank.loading_model", model=self.model_name)
+                self._model = self._loader(self.model_name, self.max_length)
+
+    def _predict(self, pairs: list[tuple[str, str]]) -> list[float]:
+        self.load()
+        scores = self._model.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
+        return [float(s) for s in scores]
+
+    async def score(self, query: str, candidates: Sequence[RetrievedChunk]) -> list[float]:
+        pairs = [(query, rerank_text(rc.chunk)) for rc in candidates]
+        return await asyncio.to_thread(self._predict, pairs)
+
+
+class _PassageScore(BaseModel):
+    id: int
+    score: float = Field(ge=0, le=10)
+
+
+class _RerankScores(BaseModel):
+    scores: list[_PassageScore]
+
+
+class GeminiReranker:
+    """LLM-as-reranker: one fast-model call rates every candidate 0-10."""
+
+    name = "gemini"
+
+    def __init__(self, gemini: GeminiClient, *, max_passage_tokens: int = 200) -> None:
+        self.gemini = gemini
+        self.max_passage_tokens = max_passage_tokens
+
+    async def score(self, query: str, candidates: Sequence[RetrievedChunk]) -> list[float]:
+        passages = "\n\n".join(
+            f'<passage id="{i}">\n'
+            f"{truncate_to_tokens(rerank_text(rc.chunk), self.max_passage_tokens)}\n"
+            "</passage>"
+            for i, rc in enumerate(candidates, start=1)
+        )
+        result = await self.gemini.generate_structured(
+            render(RERANK_PROMPT, query=query, passages=passages),
+            _RerankScores,
+            role="fast",
+            stage="rerank",
+        )
+        by_id = {s.id: s.score for s in result.scores}
+        return [by_id.get(i, 0.0) / 10.0 for i in range(1, len(candidates) + 1)]
+
+
+class FallbackReranker:
+    """Uses ``primary`` until it fails once, then switches to ``fallback`` for good.
+
+    A cross-encoder that can't load (missing package, failed download) fails the same
+    way every time, so we switch once instead of paying for the failure on every query.
+    """
+
+    def __init__(self, primary: Reranker, fallback: Reranker) -> None:
+        self.primary = primary
+        self.fallback = fallback
+        self._use_fallback = False
+
+    @property
+    def name(self) -> str:
+        return self.fallback.name if self._use_fallback else self.primary.name
+
+    async def score(self, query: str, candidates: Sequence[RetrievedChunk]) -> list[float]:
+        if not self._use_fallback:
+            try:
+                return await self.primary.score(query, candidates)
+            except Exception as exc:
+                self._use_fallback = True
+                log.warning(
+                    "rerank.fallback",
+                    primary=self.primary.name,
+                    fallback=self.fallback.name,
+                    error_type=type(exc).__name__,
+                    detail=str(exc)[:200],
+                )
+        return await self.fallback.score(query, candidates)
+
+
+def build_reranker(settings: Settings, gemini: GeminiClient) -> Reranker:
+    """Reranker for the configured backend (cross-encoder with Gemini fallback by default)."""
+    gemini_reranker = GeminiReranker(gemini)
+    if settings.reranker_backend == "gemini":
+        return gemini_reranker
+    cross_encoder = CrossEncoderReranker(
+        settings.reranker_model, max_length=settings.reranker_max_length
+    )
+    return FallbackReranker(cross_encoder, gemini_reranker)
+
+
+async def rerank(
+    reranker: Reranker,
+    query: str,
+    candidates: Sequence[RetrievedChunk],
+    *,
+    top_k: int,
+    threshold: float,
+    max_candidates: int,
+) -> list[RetrievedChunk]:
+    """Rescore the top ``max_candidates``; keep the best ``top_k`` scoring >= ``threshold``.
+
+    Returns copies with ``scores.rerank_score`` set. May return fewer than ``top_k``,
+    or nothing at all, when candidates fall below the threshold. That's intended: it
+    lets the pipeline say "not in your documents" instead of answering from noise.
+    """
+    pool = list(candidates[:max_candidates])
+    if not pool:
+        return []
+    scores = await reranker.score(query, pool)
+    rescored = [
+        rc.model_copy(update={"scores": rc.scores.model_copy(update={"rerank_score": score})})
+        for rc, score in zip(pool, scores, strict=True)
+    ]
+    rescored.sort(key=lambda rc: rc.scores.rerank_score or 0.0, reverse=True)
+    return [rc for rc in rescored if (rc.scores.rerank_score or 0.0) >= threshold][:top_k]

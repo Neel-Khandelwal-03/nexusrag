@@ -154,7 +154,11 @@ async def test_dense_retrieval_ranks_relevant_section_first(
     assert top.scores.dense_rank == 1
     assert top.scores.dense_score is not None
     assert result.passages[0].parent.parent_id == top.chunk.metadata.parent_id
-    assert [t.stage for t in result.timings] == ["embed_query", "dense_search", "parent_expansion"]
+    assert [t.stage for t in result.timings] == [
+        "query_transform",
+        "hybrid_search",
+        "parent_expansion",
+    ]
 
 
 async def test_filters_restrict_retrieval(service: RAGService, tmp_path: Path) -> None:

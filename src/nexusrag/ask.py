@@ -38,8 +38,15 @@ async def _run(args: argparse.Namespace) -> int:
         async def on_token(token: str) -> None:
             print(token, end="", flush=True)
 
+        async def on_reset() -> None:
+            print("\n[the model was interrupted; regenerating with the fallback model]\n")
+
         result = await service.ask(
-            args.question, collection=args.collection, style=args.style, on_token=on_token
+            args.question,
+            collection=args.collection,
+            style=args.style,
+            on_token=on_token,
+            on_reset=on_reset,
         )
         answer = result.answer
         if answer.citations:
@@ -47,10 +54,20 @@ async def _run(args: argparse.Namespace) -> int:
             for citation in answer.citations:
                 print(f"  [{citation.index}] {citation.location}")
         if args.show_context:
-            print("\nRetrieved passages:")
-            for passage in result.retrieval.passages:
-                best = max((c.scores.dense_score or 0 for c in passage.chunks), default=0)
-                print(f"  [{passage.index}] score={best:.3f}  {passage.to_citation().location}")
+            retrieval = result.retrieval
+            print(f"\nSearched for: {retrieval.query}")
+            for variant in retrieval.plan.variants:
+                print(f"  variant: {variant}")
+            reranker = retrieval.reranker or "none"
+            print(f"Candidates after fusion: {len(retrieval.candidates)}; reranker: {reranker}")
+            print("Retrieved passages:")
+            for passage in retrieval.passages:
+                best = passage.chunks[0].scores
+                parts = [f"rrf={best.rrf_score:.4f}" if best.rrf_score is not None else ""]
+                if best.rerank_score is not None:
+                    parts.append(f"rerank={best.rerank_score:.3f}")
+                label = " ".join(p for p in parts if p)
+                print(f"  [{passage.index}] {label}  {passage.to_citation().location}")
         u = answer.usage
         timing = ", ".join(f"{t.stage} {t.ms:.0f}ms" for t in answer.timings)
         print(f"\n({timing}; {u.prompt_tokens}+{u.output_tokens} tokens, est. ${u.cost_usd:.5f})")

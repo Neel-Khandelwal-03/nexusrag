@@ -322,3 +322,122 @@ async def test_embed_records_estimated_tokens(gemini: GeminiClient) -> None:
 async def test_embed_empty_input_makes_no_call(gemini: GeminiClient, fake_genai: FakeGenAI) -> None:
     assert await gemini.embed_documents([]) == []
     assert fake_genai.models.calls == []
+
+
+# --------------------------------------------------------------------------- model fallback
+
+
+@pytest.fixture
+def with_fallback(make_settings: Callable[..., Settings], fake_genai: FakeGenAI) -> GeminiClient:
+    settings = make_settings(
+        generation_fallback_model="gemini-3.7-flash", fast_fallback_model="gemini-3.1-flash-lite"
+    )
+    return GeminiClient(settings, client=fake_genai)
+
+
+def test_models_for_role(with_fallback: GeminiClient, gemini: GeminiClient) -> None:
+    assert with_fallback.models_for("main") == ["gemini-3.8-flash", "gemini-3.7-flash"]
+    assert with_fallback.models_for("fast") == ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"]
+    assert gemini.models_for("main") == ["gemini-3.8-flash"]  # fallback disabled
+
+
+async def test_overloaded_primary_falls_back(
+    with_fallback: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.extend([api_error(503)] * 3 + [make_response("ok")])
+    with track_usage() as usage:
+        result = await with_fallback.generate("q", role="fast")
+    assert result.text == "ok"
+    assert result.model == "gemini-3.1-flash-lite"
+    models = [c["model"] for c in fake_genai.models.calls_to("generate_content")]
+    assert models == ["gemini-3.5-flash-lite"] * 3 + ["gemini-3.1-flash-lite"]
+    assert usage.records[0].model == "gemini-3.1-flash-lite"  # cost uses the model that answered
+
+
+async def test_missing_model_falls_back(with_fallback: GeminiClient, fake_genai: FakeGenAI) -> None:
+    fake_genai.models.generate_queue.extend(
+        [api_error(404, "model not found"), make_response("ok")]
+    )
+    assert (await with_fallback.generate("q", role="main")).model == "gemini-3.7-flash"
+
+
+async def test_bad_request_does_not_fall_back(
+    with_fallback: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.append(api_error(400, "invalid argument"))
+    with pytest.raises(GeminiError):
+        await with_fallback.generate("q")
+    assert len(fake_genai.models.calls) == 1
+
+
+async def test_stream_retries_when_error_follows_empty_chunks(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    # Overload errors can arrive as a stream event after empty/thought-only chunks.
+    fake_genai.models.stream_queue.extend(
+        [
+            [make_response(thought="planning", with_usage=False), api_error(503)],
+            [make_response("ok")],
+        ]
+    )
+    tokens = [t async for t in gemini.stream("hi")]
+    assert tokens == ["ok"]
+    assert len(fake_genai.models.calls_to("generate_content_stream")) == 2
+
+
+async def test_stream_falls_back_before_first_token(
+    with_fallback: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.stream_queue.extend([api_error(503)] * 3 + [[make_response("hello")]])
+    tokens = [t async for t in with_fallback.stream("hi")]
+    assert tokens == ["hello"]
+    models = [c["model"] for c in fake_genai.models.calls_to("generate_content_stream")]
+    assert models[-1] == "gemini-3.7-flash"
+
+
+async def test_mid_stream_failure_restarts_on_fallback(
+    with_fallback: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.stream_queue.extend(
+        [[make_response("partial"), api_error(503)], [make_response("fresh answer")]]
+    )
+    restarts: list[int] = []
+
+    async def on_restart() -> None:
+        restarts.append(1)
+
+    with track_usage() as usage:
+        tokens = [t async for t in with_fallback.stream("hi", on_restart=on_restart)]
+    assert tokens == ["partial", "fresh answer"]  # the caller discards "partial" in on_restart
+    assert restarts == [1]
+    models = [c["model"] for c in fake_genai.models.calls_to("generate_content_stream")]
+    assert models == ["gemini-3.8-flash", "gemini-3.7-flash"]
+    assert [r.model for r in usage.records] == ["gemini-3.8-flash", "gemini-3.7-flash"]
+
+
+async def test_mid_stream_restart_happens_once_on_same_model_without_fallback(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.stream_queue.extend(
+        [[make_response("a"), api_error(503)], [make_response("b"), api_error(503)]]
+    )
+
+    async def on_restart() -> None:
+        return None
+
+    async def consume() -> list[str]:
+        return [t async for t in gemini.stream("hi", on_restart=on_restart)]
+
+    with pytest.raises(GeminiError):
+        await consume()
+    models = [c["model"] for c in fake_genai.models.calls_to("generate_content_stream")]
+    assert models == ["gemini-3.8-flash", "gemini-3.8-flash"]
+
+
+async def test_fallback_exhausted_raises_friendly_error(
+    with_fallback: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.extend([api_error(429)] * 6)
+    with pytest.raises(GeminiRateLimitError):
+        await with_fallback.generate("q")
+    assert len(fake_genai.models.calls) == 6  # 3 attempts on each model

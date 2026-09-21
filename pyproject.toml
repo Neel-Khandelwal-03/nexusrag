@@ -41,6 +41,11 @@ dependencies = [
 nexusrag-ingest = "nexusrag.ingest:main"
 
 [project.optional-dependencies]
+# Local cross-encoder reranker (pulls in PyTorch). Without it, reranking falls back to
+# Gemini. For CPU-only installs use: --extra-index-url https://download.pytorch.org/whl/cpu
+rerank = [
+  "sentence-transformers>=5.0",
+]
 dev = [
   "mypy>=2.0",
   "pytest>=9.0",

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 
 import pytest
+import structlog
 from pydantic import SecretStr
 
 from nexusrag.config import Settings, get_settings
@@ -28,8 +29,8 @@ _ISOLATED_ENV = (
 
 
 @pytest.fixture(autouse=True)
-def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Block real SDK clients and strip developer env vars for every test."""
+def _isolate(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Block real SDK clients, strip developer env vars and reset logging for every test."""
 
     def _forbidden(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("Tests must not construct a real google.genai.Client")
@@ -38,6 +39,9 @@ def _isolate(monkeypatch: pytest.MonkeyPatch) -> None:
     for name in _ISOLATED_ENV:
         monkeypatch.delenv(name, raising=False)
     get_settings.cache_clear()
+    yield
+    # CLI tests call configure_logging(); don't let that configuration leak into later tests.
+    structlog.reset_defaults()
 
 
 @pytest.fixture
@@ -52,6 +56,12 @@ def make_settings() -> Callable[..., Settings]:
             "llm_retry_max_wait_s": 0,
             "llm_max_attempts": 3,
             "embedding_dim": 128,
+            # Stages that need extra LLM calls or a local model are opted into per test.
+            "enable_multi_query": False,
+            "enable_rerank": False,
+            # Fallback models are opted into by the tests that exercise them.
+            "generation_fallback_model": None,
+            "fast_fallback_model": None,
         }
         values.update(overrides)
         return Settings(_env_file=None, **values)  # type: ignore[call-arg]

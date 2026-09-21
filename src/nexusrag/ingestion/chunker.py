@@ -447,6 +447,45 @@ def keyword_text(chunk: Chunk) -> str:
     return f"{chunk.metadata.title}\n{contextual_text(chunk)}"
 
 
+_TABLE_ROW_RE = re.compile(r"^\s*\|(.*)\|\s*$")
+_TABLE_SEP_CELL_RE = re.compile(r"^:?-{3,}:?$")
+_UNESCAPED_PIPE_RE = re.compile(r"(?<!\\)\|")
+
+
+def linearize_tables(text: str) -> str:
+    """Rewrite Markdown tables as ``Header: value`` lines; other text is unchanged.
+
+    Cross-encoders are trained on prose. Measured on the sample corpus, pipes and dashes
+    made them under-score table chunks badly: the "3 Performance" table scored 0.28 for
+    a wind-resistance question, but 0.81 once linearised. Two-column tables become
+    ``Key: value``; wider tables become ``Col: value; Col: value`` per row.
+    """
+    out: list[str] = []
+    header: list[str] | None = None
+    for line in text.split("\n"):
+        match = _TABLE_ROW_RE.match(line)
+        if match is None:
+            header = None
+            out.append(line)
+            continue
+        cells = [c.strip().replace("\\|", "|") for c in _UNESCAPED_PIPE_RE.split(match.group(1))]
+        if all(_TABLE_SEP_CELL_RE.match(c) for c in cells if c) and any(cells):
+            continue  # |---|---|
+        if header is None:
+            header = cells
+            continue
+        if len(header) == 2 and len(cells) >= 2:
+            out.append(f"{cells[0]}: {cells[1]}")
+        else:
+            out.append("; ".join(f"{h}: {c}" for h, c in zip(header, cells, strict=False) if c))
+    return "\n".join(out)
+
+
+def rerank_text(chunk: Chunk) -> str:
+    """Text a reranker reads: section path + chunk, with tables linearised."""
+    return linearize_tables(contextual_text(chunk))
+
+
 def chunk_document(doc: Document, collection: str, config: ChunkingConfig) -> ChunkedDocument:
     """Turn a parsed document into parent sections and child chunks."""
     parents: list[ParentSection] = []

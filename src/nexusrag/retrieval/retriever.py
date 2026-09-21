@@ -1,8 +1,13 @@
-"""The retrieval pipeline: query -> ranked child chunks -> parent-section context.
+"""The retrieval pipeline, end to end.
 
-Phase 3 implements the baseline: dense vector search, then parent expansion. Later
-stages (query transformation, BM25 + RRF fusion, reranking) plug in before parent
-expansion without changing the result shape.
+    question (+ chat history)
+      -> query plan       condense follow-ups; optional multi-query variants and HyDE
+      -> hybrid search    dense + BM25 for every query, fused with Reciprocal Rank Fusion
+      -> rerank           cross-encoder rescoring of the top candidates, with a score threshold
+      -> parent expansion swap child chunks for their parent sections, within a token budget
+
+Each stage can be switched off per request (:class:`RetrievalOptions`), which is how
+the evaluation suite compares "dense only" against "hybrid + rerank + rewriting".
 
 Parent expansion ("retrieve small, read big"): children are precise search units but
 too thin to answer from, so each retrieved child is swapped for its parent section.
@@ -14,47 +19,82 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from typing import Any
 
 from nexusrag.config import Settings
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.log import get_logger, timed
 from nexusrag.models import (
+    ChatTurn,
     ContextPassage,
     ParentSection,
     RetrievedChunk,
     SearchFilters,
-    StageScores,
     StageTiming,
 )
+from nexusrag.retrieval.hybrid import HybridSearcher, RankedList, where_for
+from nexusrag.retrieval.query_transform import QueryPlan, QueryTransformer
+from nexusrag.retrieval.reranker import Reranker, build_reranker, rerank
 from nexusrag.store import Stores
-from nexusrag.store.vector_store import build_where
 from nexusrag.utils.tokens import count_tokens, truncate_to_tokens
+
+__all__ = [
+    "RetrievalOptions",
+    "RetrievalResult",
+    "Retriever",
+    "expand_to_parents",
+    "where_for",
+]
 
 log = get_logger(__name__)
 
 ParentFetcher = Callable[[list[str]], list[ParentSection]]
 
 
+@dataclass(frozen=True)
+class RetrievalOptions:
+    """Per-request switches for each retrieval stage (defaults come from settings)."""
+
+    top_k: int = 5
+    hybrid: bool = True
+    multi_query: bool = True
+    num_variants: int = 3
+    hyde: bool = False
+    rerank: bool = True
+
+    @classmethod
+    def from_settings(cls, settings: Settings, **overrides: Any) -> RetrievalOptions:
+        base = cls(
+            top_k=settings.top_k,
+            hybrid=settings.enable_hybrid,
+            multi_query=settings.enable_multi_query,
+            num_variants=settings.num_query_variants,
+            hyde=settings.enable_hyde,
+            rerank=settings.enable_rerank,
+        )
+        return replace(base, **overrides)
+
+
 @dataclass
 class RetrievalResult:
     """Everything retrieval produced, including per-stage data for the transparency UI."""
 
-    query: str
+    plan: QueryPlan
+    #: Fused (RRF) candidates before reranking, best first.
+    candidates: list[RetrievedChunk]
+    #: Final ranked chunks after reranking/threshold (at most top_k).
     chunks: list[RetrievedChunk]
     passages: list[ContextPassage]
+    rankings: list[RankedList] = field(default_factory=list)
+    #: Name of the reranker that produced the final order, or None if reranking was skipped.
+    reranker: str | None = None
     timings: list[StageTiming] = field(default_factory=list)
 
-
-def where_for(filters: SearchFilters | None) -> dict[str, object] | None:
-    """Chroma ``where`` clause for UI filters."""
-    if filters is None or filters.is_empty:
-        return None
-    return build_where(
-        doc_ids=filters.doc_ids,
-        filenames=filters.filenames,
-        source_types=[t.value for t in filters.source_types] if filters.source_types else None,
-    )
+    @property
+    def query(self) -> str:
+        """The standalone question retrieval actually searched for."""
+        return self.plan.standalone
 
 
 def _fallback_parent(children: Sequence[RetrievedChunk]) -> ParentSection:
@@ -115,56 +155,97 @@ def expand_to_parents(
 class Retriever:
     """Retrieves context for a question from one knowledge base."""
 
-    def __init__(self, settings: Settings, gemini: GeminiClient, stores: Stores) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        gemini: GeminiClient,
+        stores: Stores,
+        *,
+        reranker: Reranker | None = None,
+    ) -> None:
         self.settings = settings
-        self.gemini = gemini
         self.stores = stores
+        self.transformer = QueryTransformer(gemini)
+        self.searcher = HybridSearcher(settings, gemini, stores)
+        self.reranker = reranker or build_reranker(settings, gemini)
 
     async def retrieve(
         self,
-        query: str,
+        question: str,
         *,
         collection: str,
-        top_k: int | None = None,
+        history: Sequence[ChatTurn] = (),
         filters: SearchFilters | None = None,
+        options: RetrievalOptions | None = None,
     ) -> RetrievalResult:
-        """Dense search for ``query``, then expand the hits into parent passages."""
-        k = top_k or self.settings.top_k
+        """Run the full retrieval pipeline for ``question``."""
+        s = self.settings
+        opts = options or RetrievalOptions.from_settings(s)
         timings: list[StageTiming] = []
 
         with timed() as t:
-            vector = await self.gemini.embed_query(query)
-        timings.append(StageTiming(stage="embed_query", ms=t.ms))
+            plan = await self.transformer.plan(
+                question,
+                history[-s.history_turns :] if s.history_turns else (),
+                multi_query=opts.multi_query,
+                num_variants=opts.num_variants,
+                hyde=opts.hyde,
+            )
+        timings.append(StageTiming(stage="query_transform", ms=t.ms))
 
         with timed() as t:
-            hits = await asyncio.to_thread(
-                self.stores.vectors.query, collection, vector, k, where_for(filters)
+            hybrid = await self.searcher.search(
+                plan.queries, collection=collection, filters=filters, use_bm25=opts.hybrid
             )
-        timings.append(StageTiming(stage="dense_search", ms=t.ms))
-        chunks = [
-            RetrievedChunk(
-                chunk=hit.chunk,
-                scores=StageScores(dense_rank=hit.rank, dense_score=hit.score),
-                matched_queries=[query],
-            )
-            for hit in hits
-        ]
+        timings.append(
+            StageTiming(stage="hybrid_search" if opts.hybrid else "dense_search", ms=t.ms)
+        )
+
+        chunks = hybrid.candidates[: opts.top_k]
+        reranker_name: str | None = None
+        if opts.rerank and hybrid.candidates:
+            with timed() as t:
+                try:
+                    chunks = await rerank(
+                        self.reranker,
+                        plan.standalone,
+                        hybrid.candidates,
+                        top_k=opts.top_k,
+                        threshold=s.rerank_threshold,
+                        max_candidates=s.rerank_candidates,
+                    )
+                    reranker_name = self.reranker.name
+                except Exception as exc:
+                    # Reranking improves ordering but isn't essential: keep the RRF order.
+                    log.warning("retrieval.rerank_failed", error_type=type(exc).__name__)
+            timings.append(StageTiming(stage="rerank", ms=t.ms))
 
         with timed() as t:
             passages = await asyncio.to_thread(
                 expand_to_parents,
                 chunks,
                 lambda ids: self.stores.parents.get_many(collection, ids),
-                self.settings.context_token_budget,
+                s.context_token_budget,
             )
         timings.append(StageTiming(stage="parent_expansion", ms=t.ms))
 
         log.info(
             "retrieval.done",
             collection=collection,
+            queries=len(plan.queries),
+            candidates=len(hybrid.candidates),
             chunks=len(chunks),
             passages=len(passages),
+            reranker=reranker_name,
             context_tokens=sum(p.parent.token_count for p in passages),
-            **{f"{s.stage}_ms": round(s.ms, 1) for s in timings},
+            **{f"{st.stage}_ms": round(st.ms, 1) for st in timings},
         )
-        return RetrievalResult(query=query, chunks=chunks, passages=passages, timings=timings)
+        return RetrievalResult(
+            plan=plan,
+            candidates=hybrid.candidates,
+            chunks=chunks,
+            passages=passages,
+            rankings=hybrid.rankings,
+            reranker=reranker_name,
+            timings=timings,
+        )

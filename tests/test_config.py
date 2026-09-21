@@ -92,3 +92,23 @@ def test_derived_paths(make_settings: Callable[..., Settings]) -> None:
     assert s.chat_db_path == Path("/tmp/nx/chainlit.db")
     assert not s.is_deployed
     assert make_settings(environment="production").is_deployed
+
+
+def test_env_example_documents_only_real_settings() -> None:
+    """Every KEY in .env.example (commented or not) must be a real setting."""
+    import re
+
+    text = Path(__file__).resolve().parents[1].joinpath(".env.example").read_text(encoding="utf-8")
+    keys = set(re.findall(r"^#? ?([A-Z][A-Z0-9_]+)=", text, flags=re.MULTILINE))
+    read_by_chainlit = {"CHAINLIT_AUTH_SECRET"}
+    fields = {name.upper() for name in Settings.model_fields}
+    assert keys - fields - read_by_chainlit == set()
+    # Only secrets are active; everything else stays at the code defaults.
+    active = set(re.findall(r"^([A-Z][A-Z0-9_]+)=", text, flags=re.MULTILINE))
+    assert active == {"GEMINI_API_KEY", "AUTH_PASSWORD", "CHAINLIT_AUTH_SECRET"}
+
+
+def test_env_file_with_bom_is_read(tmp_path: Path) -> None:
+    env = tmp_path / ".env"
+    env.write_bytes("\ufeffGENERATION_MODEL=from-bom-file\n".encode())
+    assert Settings(_env_file=env).generation_model == "from-bom-file"  # type: ignore[call-arg]

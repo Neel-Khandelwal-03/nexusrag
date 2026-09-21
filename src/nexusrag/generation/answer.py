@@ -28,6 +28,7 @@ from nexusrag.models import Citation, ContextPassage
 
 AnswerStyle = Literal["concise", "detailed"]
 TokenCallback = Callable[[str], Awaitable[None]]
+ResetCallback = Callable[[], Awaitable[None]]
 
 _QUOTES = "\"'“”‘’"
 
@@ -104,8 +105,14 @@ class AnswerGenerator:
         *,
         style: AnswerStyle = "detailed",
         on_token: TokenCallback | None = None,
+        on_reset: ResetCallback | None = None,
     ) -> GeneratedAnswer:
-        """Answer ``question`` from ``passages``, streaming tokens to ``on_token``."""
+        """Answer ``question`` from ``passages``, streaming tokens to ``on_token``.
+
+        If the model fails mid-answer, generation restarts once on the fallback model.
+        ``on_reset`` is awaited first so the caller can clear what was already displayed.
+        Without a reset hook, a streaming caller can't un-show text, so no restart happens.
+        """
         if not passages:
             # Nothing retrieved: refuse without spending an LLM call.
             if on_token is not None:
@@ -113,11 +120,19 @@ class AnswerGenerator:
             return GeneratedAnswer(text=REFUSAL_MESSAGE, refused=True)
 
         parts: list[str] = []
+
+        async def restart() -> None:
+            parts.clear()
+            if on_reset is not None:
+                await on_reset()
+
+        can_restart = on_token is None or on_reset is not None
         async for delta in self.gemini.stream(
             build_answer_prompt(question, passages, style),
             role="main",
             system_instruction=answer_system_instruction(),
             stage="answer",
+            on_restart=restart if can_restart else None,
         ):
             parts.append(delta)
             if on_token is not None:
