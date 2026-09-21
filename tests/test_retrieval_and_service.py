@@ -20,6 +20,7 @@ from nexusrag.models import (
     SearchFilters,
     SourceType,
 )
+from nexusrag.retrieval.reranker import CrossEncoderReranker
 from nexusrag.retrieval.retriever import expand_to_parents, where_for
 from nexusrag.service import RAGService
 from nexusrag.store import Stores
@@ -216,3 +217,39 @@ async def test_render_helpers(service: RAGService, fake_genai: FakeGenAI, tmp_pa
     docs = service.stores.registry.list_documents("default")
     assert "2 documents" in welcome_markdown("default", docs)
     assert "empty" in welcome_markdown("default", [])
+
+
+async def test_stats_counts_the_knowledge_base(service: RAGService, tmp_path: Path) -> None:
+    empty = service.stats()
+    assert (empty.documents, empty.parents, empty.chunks, empty.vectors) == ([], 0, 0, 0)
+    await ingest(service, tmp_path)
+    stats = service.stats("default")
+    assert sorted(d.filename for d in stats.documents) == ["aurora.md", "policy.md"]
+    assert stats.chunks == sum(d.num_chunks for d in stats.documents) == stats.vectors
+    assert stats.parents >= 2
+    assert "default" in stats.collections
+    assert stats.cache_lookups is None  # the semantic cache arrives in phase 7
+
+
+def test_warm_up_loads_the_reranker_only_when_enabled(
+    make_settings: Callable[..., Settings], fake_genai: FakeGenAI, tmp_path: Path
+) -> None:
+    loaded: list[bool] = []
+
+    def loader(name: str, max_len: int) -> object:
+        loaded.append(True)
+        return object()
+
+    for enabled in (False, True):
+        settings = make_settings(storage_dir=tmp_path / f"storage-{enabled}", enable_rerank=enabled)
+        reranker = CrossEncoderReranker("fake-model", loader=loader)
+        svc = RAGService(
+            settings,
+            GeminiClient(settings, client=fake_genai),
+            Stores.open(settings),
+            reranker=reranker,
+        )
+        svc.warm_up()
+        svc.warm_up()
+        svc.close()
+    assert loaded == [True]
