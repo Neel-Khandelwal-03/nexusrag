@@ -1,0 +1,54 @@
+SKYLARK DYNAMICS CUSTOMER SUPPORT FAQ
+
+Last updated: August 2026. Skylark Dynamics is a fictional company; this document is sample data for NexusRAG.
+
+ORDERS AND SHIPPING
+
+Q: How long does shipping take?
+A: Orders placed before 14:00 Mountain Time ship the same business day. Standard delivery within the United States takes 3 to 5 business days and express delivery takes 1 to 2 business days. International shipping to Canada, the European Union and India takes 7 to 12 business days.
+
+Q: How do I track my order?
+A: A tracking link is emailed when the order ships. You can also see the status under My Orders in the Skylark Pilot app or on the customer portal.
+
+Q: Can batteries be shipped by air?
+A: Spare batteries ship by ground only. Aircraft kits that include batteries also ship by ground, which adds 2 business days to express orders.
+
+RETURNS AND REFUNDS
+
+Q: What is the return policy?
+A: Unused products in their original packaging can be returned within 30 days of delivery for a full refund. Opened products can be returned within 30 days with a 15% restocking fee, as long as they have not been flown for more than 2 hours. Custom-configured enterprise kits cannot be returned.
+
+Q: How long do refunds take?
+A: Refunds are issued to the original payment method within 10 business days after the returned item passes inspection.
+
+FIRMWARE AND SOFTWARE
+
+Q: How do I update the firmware?
+A: Open the Skylark Pilot app, connect the aircraft and the controller, and follow the prompt under Settings, then Firmware. Keep both the aircraft battery and the controller above 50% charge during the update, which takes about 15 minutes. Never power off the aircraft during an update.
+
+Q: What are the latest firmware versions?
+A: As of August 2026 the latest firmware is version 4.2.1 for the Aurora X1 and version 2.0.3 for the Borealis S2. Release notes are published on the Skylark support site.
+
+BATTERIES
+
+Q: How should I store batteries?
+A: Store batteries at 40 to 60% charge in a dry place between 15 and 25 degrees Celsius. Smart batteries discharge themselves to storage level automatically if they are not used for 10 days.
+
+Q: Can I take Aurora X1 batteries on a plane?
+A: No. Each Aurora X1 battery holds 533 Wh, which is above the 160 Wh limit airlines allow for passengers, so they cannot be carried on or checked in on passenger flights. Use ground shipping to move batteries between sites.
+
+Q: How do I dispose of old batteries?
+A: Discharge the battery fully using the Discharge for Disposal option in the app, then take it to a certified battery recycling point. Skylark also accepts old batteries for free recycling at the Denver service centre.
+
+REPAIRS
+
+Q: How long do repairs take?
+A: Standard repairs take 7 to 10 business days at the Denver service centre, not counting shipping time.
+
+Q: How much does an out-of-warranty repair cost?
+A: A diagnostic fee of 120 USD applies to out-of-warranty repairs. The fee is waived if you go ahead with the quoted repair. Customers with Skylark Care Plus pay no diagnostic fee.
+
+CONTACT
+
+Q: When is support available?
+A: Phone and chat support is available Monday to Friday from 07:00 to 19:00 Mountain Time on +1 555 0100 and at support@skylark-dynamics.example. Enterprise customers have a 24/7 emergency line listed in their service agreement.
