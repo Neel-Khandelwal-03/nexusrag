@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
@@ -79,12 +80,21 @@ class CrossEncoderReranker:
         self._model: Any = None
         self._lock = threading.Lock()
 
+    def warm_up(self) -> None:
+        self.load()
+
     def load(self) -> None:
         """Load the model now (e.g. at startup) instead of on the first query."""
         with self._lock:
             if self._model is None:
                 log.info("rerank.loading_model", model=self.model_name)
+                started = time.perf_counter()
                 self._model = self._loader(self.model_name, self.max_length)
+                log.info(
+                    "rerank.model_loaded",
+                    model=self.model_name,
+                    ms=round((time.perf_counter() - started) * 1000),
+                )
 
     def _predict(self, pairs: list[tuple[str, str]]) -> list[float]:
         self.load()
@@ -146,6 +156,24 @@ class FallbackReranker:
     @property
     def name(self) -> str:
         return self.fallback.name if self._use_fallback else self.primary.name
+
+    def warm_up(self) -> None:
+        """Load the primary model ahead of the first query; switch to the fallback on failure."""
+        load = getattr(self.primary, "load", None)
+        if load is None or self._use_fallback:
+            return
+        try:
+            load()
+        except Exception as exc:
+            self._use_fallback = True
+            log.warning(
+                "rerank.fallback",
+                primary=self.primary.name,
+                fallback=self.fallback.name,
+                error_type=type(exc).__name__,
+                detail=str(exc)[:200],
+                during="warm_up",
+            )
 
     async def score(self, query: str, candidates: Sequence[RetrievedChunk]) -> list[float]:
         if not self._use_fallback:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Iterator, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -275,6 +276,34 @@ async def test_fallback_switches_once_when_local_model_fails(
     assert attempts == [1]  # the broken model isn't retried on every query
 
 
+def test_fallback_warm_up_loads_the_primary_or_switches(gemini: GeminiClient) -> None:
+    loaded: list[str] = []
+
+    def loader(name: str, max_len: int) -> Any:
+        loaded.append(name)
+        return object()
+
+    ok = FallbackReranker(CrossEncoderReranker("fake-model", loader=loader), GeminiReranker(gemini))
+    ok.warm_up()
+    ok.warm_up()
+    assert loaded == ["fake-model"]
+    assert ok.name == "cross_encoder"
+
+    def broken(name: str, max_len: int) -> Any:
+        loaded.append("broken")
+        raise OSError("download failed")
+
+    bad = FallbackReranker(
+        CrossEncoderReranker("fake-model", loader=broken), GeminiReranker(gemini)
+    )
+    bad.warm_up()
+    bad.warm_up()
+    assert bad.name == "gemini"
+    assert loaded.count("broken") == 1  # not retried
+
+    FallbackReranker(GeminiReranker(gemini), GeminiReranker(gemini)).warm_up()  # nothing to load
+
+
 def test_build_reranker_backends(
     make_settings: Callable[..., Settings], gemini: GeminiClient
 ) -> None:
@@ -376,6 +405,30 @@ async def test_rerank_failure_keeps_fused_order(
     )
     assert result.reranker is None
     assert result.chunks == result.candidates[:2]
+
+
+async def test_rerank_threshold_can_be_relaxed_per_request(
+    settings: Settings, fake_genai: FakeGenAI, stores: Stores, tmp_path: Path
+) -> None:
+    fake_genai.models.embed_fn = keyword_embedder()
+    gemini = GeminiClient(settings, client=fake_genai)
+    await index(settings, gemini, stores, tmp_path)
+    reranker = CrossEncoderReranker(
+        "fake-model", loader=lambda name, max_len: FakeCrossEncoder(["charg"])
+    )
+    retriever = Retriever(settings, gemini, stores, reranker=reranker)
+    options = RetrievalOptions(top_k=3, multi_query=False, rerank=True)
+
+    strict = await retriever.retrieve("battery charging", collection="default", options=options)
+    assert len(strict.chunks) == 1  # only the charging passage clears the threshold
+
+    relaxed = await retriever.retrieve(
+        "battery charging",
+        collection="default",
+        options=replace(options, rerank_threshold=0.0),
+    )
+    assert len(relaxed.chunks) == 3  # reordered, nothing dropped
+    assert strict.chunks[0].chunk.chunk_id in {rc.chunk.chunk_id for rc in relaxed.chunks}
 
 
 def test_options_from_settings(make_settings: Callable[..., Settings]) -> None:
