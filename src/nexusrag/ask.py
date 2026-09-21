@@ -38,8 +38,15 @@ async def _run(args: argparse.Namespace) -> int:
         async def on_token(token: str) -> None:
             print(token, end="", flush=True)
 
+        async def on_reset() -> None:
+            print("\n[the model was interrupted; regenerating with the fallback model]\n")
+
         result = await service.ask(
-            args.question, collection=args.collection, style=args.style, on_token=on_token
+            args.question,
+            collection=args.collection,
+            style=args.style,
+            on_token=on_token,
+            on_reset=on_reset,
         )
         answer = result.answer
         if answer.citations:

@@ -12,7 +12,12 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from nexusrag.config import Settings, get_settings
-from nexusrag.generation.answer import AnswerGenerator, AnswerStyle, TokenCallback
+from nexusrag.generation.answer import (
+    AnswerGenerator,
+    AnswerStyle,
+    ResetCallback,
+    TokenCallback,
+)
 from nexusrag.llm.gemini_client import GeminiClient
 from nexusrag.llm.usage import track_usage
 from nexusrag.log import get_logger, request_context, timed
@@ -58,6 +63,7 @@ class RAGService:
         options: RetrievalOptions | None = None,
         style: AnswerStyle = "detailed",
         on_token: TokenCallback | None = None,
+        on_reset: ResetCallback | None = None,
         request_id: str | None = None,
     ) -> AskResult:
         """Answer ``question`` from the documents, streaming tokens to ``on_token``."""
@@ -74,7 +80,11 @@ class RAGService:
                 # Answer the standalone question: after condensation it carries the context
                 # a follow-up like "and its warranty?" lacks.
                 generated = await self.generator.generate(
-                    retrieval.query, retrieval.passages, style=style, on_token=on_token
+                    retrieval.query,
+                    retrieval.passages,
+                    style=style,
+                    on_token=on_token,
+                    on_reset=on_reset,
                 )
             totals = usage.totals()
             log.info(

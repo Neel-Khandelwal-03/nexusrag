@@ -65,8 +65,19 @@ async def on_message(message: cl.Message) -> None:
     # standalone questions. Only answer text is kept, without the sources footer.
     history: list[ChatTurn] = cl.user_session.get("history") or []
     reply = cl.Message(content="")
+
+    async def reset_reply() -> None:
+        # The model failed mid-answer and is regenerating: clear the partial text.
+        reply.content = ""
+        await reply.update()
+
     try:
-        result = await service.ask(message.content, history=history, on_token=reply.stream_token)
+        result = await service.ask(
+            message.content,
+            history=history,
+            on_token=reply.stream_token,
+            on_reset=reset_reply,
+        )
     except GeminiError as exc:
         reply.content = f"⚠️ {exc.user_message}"
         await reply.send()

@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+import pytest
+
 from nexusrag.generation.answer import (
     AnswerGenerator,
     answer_system_instruction,
     build_answer_prompt,
     is_refusal,
 )
-from nexusrag.llm.gemini_client import GeminiClient
+from nexusrag.llm.gemini_client import GeminiClient, GeminiError
 from nexusrag.llm.prompts import REFUSAL_MESSAGE
 from nexusrag.models import ContextPassage, ParentSection, SourceType
-from tests.fakes import FakeGenAI, make_response
+from tests.fakes import FakeGenAI, api_error, make_response
 
 
 def passage(index: int, text: str, section: str = "3 Performance") -> ContextPassage:
@@ -99,3 +101,38 @@ async def test_no_passages_refuses_without_calling_llm(
     assert result.refused
     assert streamed == [REFUSAL_MESSAGE]
     assert fake_genai.models.calls == []
+
+
+async def test_mid_answer_failure_resets_and_regenerates(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.stream_queue.extend(
+        [
+            [make_response("It flies 46"), api_error(503)],
+            [make_response("Flight time is 46 minutes [1].")],
+        ]
+    )
+    shown: list[str] = []
+
+    async def on_token(token: str) -> None:
+        shown.append(token)
+
+    async def on_reset() -> None:
+        shown.clear()
+
+    result = await AnswerGenerator(gemini).generate(
+        "q", PASSAGES, on_token=on_token, on_reset=on_reset
+    )
+    assert result.text == "Flight time is 46 minutes [1]."
+    assert "".join(shown) == result.text  # the partial text was cleared before regenerating
+
+
+async def test_no_restart_without_a_reset_hook(gemini: GeminiClient, fake_genai: FakeGenAI) -> None:
+    fake_genai.models.stream_queue.append([make_response("It flies 46"), api_error(503)])
+
+    async def on_token(token: str) -> None:
+        return None
+
+    with pytest.raises(GeminiError):
+        await AnswerGenerator(gemini).generate("q", PASSAGES, on_token=on_token)
+    assert len(fake_genai.models.calls_to("generate_content_stream")) == 1
