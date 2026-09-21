@@ -105,11 +105,33 @@ class _ScrubFilter(logging.Filter):
         return True
 
 
+class _CurrentStdoutHandler(logging.StreamHandler):
+    """Writes to whatever ``sys.stdout`` is *now*, not the stream at configuration time.
+
+    Test runners and some servers swap ``sys.stdout``; a handler holding the old stream
+    would write to a closed file.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.stream = sys.stdout
+        super().emit(record)
+
+
+class _CurrentStdoutLogger(structlog.PrintLogger):
+    """structlog ``PrintLogger`` that resolves ``sys.stdout`` on every write (see above)."""
+
+    def msg(self, message: str) -> None:
+        self._file = sys.stdout
+        super().msg(message)
+
+    log = debug = info = warn = warning = error = critical = exception = fatal = failure = msg
+
+
 def configure_logging(settings: Settings) -> None:
     """Configure structlog and the stdlib root logger. Safe to call more than once."""
     level = logging.getLevelNamesMapping().get(settings.log_level.upper(), logging.INFO)
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = _CurrentStdoutHandler()
     handler.addFilter(_ScrubFilter())
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
     root = logging.getLogger()
@@ -136,7 +158,7 @@ def configure_logging(settings: Settings) -> None:
     structlog.configure(
         processors=processors,
         wrapper_class=structlog.make_filtering_bound_logger(level),
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+        logger_factory=lambda *args: _CurrentStdoutLogger(),
         cache_logger_on_first_use=False,
     )
 
