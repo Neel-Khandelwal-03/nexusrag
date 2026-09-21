@@ -80,8 +80,28 @@ chainlit run app.py                                   # chat UI at http://localh
 python -m nexusrag.ask "How long does the Aurora X1 battery last?" --show-context
 ```
 
+Retrieval runs in stages, and each stage can be switched on or off:
+
+| Stage | What it does | Why |
+|---|---|---|
+| Query condensation | Rewrites a follow-up ("and its warranty?") into a standalone question using the last few messages (fast model; skipped when there's no history) | Follow-ups can't be searched on their own |
+| Multi-query (`ENABLE_MULTI_QUERY`) | Adds 3 paraphrases of the question | Different wording finds passages the original phrasing misses |
+| HyDE (`ENABLE_HYDE`, off by default) | Drafts a hypothetical answer passage and searches with its embedding (dense only) | Helps when questions and documents are worded very differently |
+| Hybrid search (`ENABLE_HYBRID`) | Dense search in Chroma plus BM25, top 20 each, for every query | Embeddings capture meaning; BM25 catches exact codes like "CH-400" |
+| Reciprocal Rank Fusion (k=60) | Merges all rankings by rank, not score | No score normalisation needed; agreement across lists wins |
+| Reranking (`ENABLE_RERANK`) | `BAAI/bge-reranker-base` rescores the top 30 fused candidates and keeps the top-k above `RERANK_THRESHOLD` | Reading query and passage together is far more accurate than comparing embeddings |
+| Parent expansion | Swaps chunks for their parent sections, within a 6,000-token budget | Small chunks for precise search, full sections for enough context |
+
+The cross-encoder is an optional extra because it pulls in PyTorch:
+
+```bash
+pip install -e ".[rerank]" --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+Without it, or if the model can't be loaded, reranking falls back to Gemini-as-reranker automatically. Set `RERANKER_BACKEND=gemini` to use Gemini on purpose.
+
 Each answer is grounded in the retrieved passages:
-- The question is embedded and matched against child chunks in Chroma; each hit is swapped for its parent section, within a context budget of 6,000 tokens.
+- The passages that survive reranking go to the answer model as numbered context.
 - Gemini streams an answer that cites every factual sentence with `[n]`. The passages are treated as untrusted data, so instructions hidden in a document are ignored.
 - Citations to passages that don't exist are removed after generation.
 - Click a `[n]` marker in the UI to open the source panel: file, page, section, the matched chunk and the full section the model read.

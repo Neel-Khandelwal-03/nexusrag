@@ -34,3 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Citation mapping: `[n]`, `[1, 2]` and `[1-3]` markers are parsed, invalid references removed, and each citation carries its parent passage plus the matched chunks.
   - `RAGService` facade shared by the UI, CLI and (later) evaluation; `python -m nexusrag.ask` terminal client.
   - Minimal Chainlit app: welcome message listing the knowledge base, streamed answers, clickable `[n]` citations opening side panels, and friendly error messages.
+- Advanced retrieval (phase 4):
+  - Query transformation with the fast model:
+    - condensation of follow-ups using chat history (skipped when there's no history);
+    - multi-query paraphrases, deduplicated and capped;
+    - optional HyDE, embedded as a document;
+    - each step falls back to the original question on failure.
+  - Hybrid search: dense and BM25 for every query, with a hand-written Reciprocal Rank Fusion (k=60, deterministic tie-breaking). Per-stage scores and matched queries are recorded on each chunk. HyDE is excluded from BM25.
+  - Reranking:
+    - `bge-reranker-base` cross-encoder, lazily loaded once and applied to the top N candidates with a score threshold;
+    - Gemini-as-reranker backend, with automatic one-time fallback when the local model can't load;
+    - retrieval keeps the RRF order if reranking fails.
+  - `RetrievalOptions` for per-request stage switches (used by the UI settings and the evaluation configs).
+  - `RetrievalResult` now exposes the query plan, fused candidates, individual rankings and the reranker used.
+  - The chat app passes conversation history for follow-up questions.
+  - Rerankers read tables linearised as `Header: value` lines (`linearize_tables`). On the sample corpus this lifted table chunks from, for example, 0.28 to 0.81 and from rank 4 to rank 2.
+  - `RERANK_THRESHOLD` raised from 0.05 to 0.10 and `RERANK_CANDIDATES` set to 20, after calibrating against real `bge-reranker-base` scores on the sample corpus.
+  - New settings `RERANK_CANDIDATES` and `RERANKER_MAX_LENGTH`; optional `rerank` extra (sentence-transformers).
+  - Logging writes to the current `sys.stdout`, so swapped streams (test runners, servers) can't cause writes to a closed file.
