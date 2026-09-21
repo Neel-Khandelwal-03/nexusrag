@@ -466,7 +466,7 @@ class GeminiClient:
     async def _embed_call(self, batch: list[str], task_type: str | None) -> list[list[float]]:
         # One Content per text gives one embedding per text. Passing a list of plain strings to
         # gemini-embedding-2 would aggregate them into a single vector.
-        contents = [types.Content(parts=[types.Part(text=text)]) for text in batch]
+        contents: list[Any] = [types.Content(parts=[types.Part(text=text)]) for text in batch]
         config = types.EmbedContentConfig(
             output_dimensionality=self._settings.embedding_dim, task_type=task_type
         )
