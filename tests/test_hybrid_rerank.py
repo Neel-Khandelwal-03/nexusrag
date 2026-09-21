@@ -24,7 +24,13 @@ from nexusrag.retrieval.reranker import (
 from nexusrag.retrieval.retriever import RetrievalOptions, Retriever
 from nexusrag.service import RAGService
 from nexusrag.store import Stores
-from tests.fakes import FakeGenAI, hash_embedder, keyword_embedder, make_response
+from tests.fakes import (
+    FakeGenAI,
+    hash_embedder,
+    keyword_embedder,
+    make_response,
+    router_response,
+)
 
 DOCS = {
     "aurora.md": """# Aurora Spec
@@ -197,6 +203,24 @@ async def test_rerankers_read_linearised_tables() -> None:
     assert seen == ["Range: 12 km"]
 
 
+async def test_first_stage_consensus_is_not_buried_by_one_reranker_score() -> None:
+    """RRF of hybrid order + reranker order keeps a #1 hybrid hit the reranker under-scores."""
+    pool = candidates_from(["target", "b", "c", "d", "e", "f"])  # hybrid order: target first
+    scores = {"target": 0.2, "b": 0.9, "c": 0.8, "d": 0.7, "e": 0.6, "f": 0.5}
+
+    class Fixed(FakeCrossEncoder):
+        def predict(self, pairs: list[tuple[str, str]], **kwargs: Any) -> list[float]:
+            return [scores[text] for _, text in pairs]
+
+    reranker = CrossEncoderReranker("fake-model", loader=lambda name, max_len: Fixed([]))
+    fused = await rerank(reranker, "q", pool, top_k=3, threshold=0.1, max_candidates=10)
+    pure = await rerank(
+        reranker, "q", pool, top_k=3, threshold=0.1, max_candidates=10, fusion_weight=0.0
+    )
+    assert "target" in texts(fused)
+    assert texts(pure) == ["b", "c", "d"]
+
+
 async def test_only_top_candidates_are_rescored() -> None:
     model = FakeCrossEncoder(["x"])
     reranker = CrossEncoderReranker("fake-model", loader=lambda name, max_len: model)
@@ -270,18 +294,18 @@ async def full_service(
     fake_genai.models.embed_fn = keyword_embedder()
     gemini = GeminiClient(settings, client=fake_genai)
     await index(settings, gemini, stores, tmp_path)
-    service = RAGService(settings, gemini, stores)
     reranker = CrossEncoderReranker(
         "fake-model", loader=lambda name, max_len: FakeCrossEncoder(["charg"])
     )
-    service.retriever = Retriever(settings, gemini, stores, reranker=reranker)
-    return service
+    return RAGService(settings, gemini, stores, reranker=reranker)
 
 
 async def test_full_pipeline_with_all_stages(
     full_service: RAGService, fake_genai: FakeGenAI
 ) -> None:
     def route(prompt: str) -> object:
+        if "You route messages" in prompt:  # the router condenses the follow-up
+            return router_response(standalone="How long does charging the battery take?")
         if "standalone search question" in prompt:
             return make_response(
                 json.dumps({"standalone_question": "How long does charging the battery take?"})
@@ -302,7 +326,8 @@ async def test_full_pipeline_with_all_stages(
     result = await full_service.ask("How long to charge it?", history=history, options=options)
     retrieval = result.retrieval
     assert retrieval.query == "How long does charging the battery take?"
-    assert [q.kind for q in retrieval.plan.queries] == ["standalone", "variant", "variant", "hyde"]
+    # The router already condensed the follow-up, so retrieval searches it as-is.
+    assert [q.kind for q in retrieval.plan.queries] == ["original", "variant", "variant", "hyde"]
     assert retrieval.reranker == "cross_encoder"
     assert [t.stage for t in retrieval.timings] == [
         "query_transform",
