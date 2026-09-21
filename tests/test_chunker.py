@@ -9,6 +9,7 @@ from nexusrag.ingestion.chunker import (
     chunk_document,
     contextual_text,
     keyword_text,
+    linearize_tables,
     split_table,
     split_text,
     tail_text,
@@ -226,3 +227,28 @@ def test_chunking_is_deterministic(child: int) -> None:
     first = chunk_document(doc, "kb", config)
     second = chunk_document(doc, "kb", config)
     assert [c.model_dump() for c in first.chunks] == [c.model_dump() for c in second.chunks]
+
+
+def test_linearize_two_column_table() -> None:
+    text = (
+        "3 Performance\n| Metric | Value |\n|---|---|\n"
+        "| Wind resistance | 10 m/s |\n| Range | 18 km |"
+    )
+    assert linearize_tables(text) == "3 Performance\nWind resistance: 10 m/s\nRange: 18 km"
+
+
+def test_linearize_wide_table_and_escaped_pipes() -> None:
+    text = (
+        "| Product | Units | Revenue |\n|:---|---:|---|\n| Aurora X1 | 1,420 | 20.6 |\n"
+        "| A \\| B | | 7.9 |\nAfter the table."
+    )
+    assert linearize_tables(text).split("\n") == [
+        "Product: Aurora X1; Units: 1,420; Revenue: 20.6",
+        "Product: A | B; Revenue: 7.9",
+        "After the table.",
+    ]
+
+
+def test_linearize_leaves_prose_alone() -> None:
+    text = "Plain text with a | pipe in the middle."
+    assert linearize_tables(text) == text

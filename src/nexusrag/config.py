@@ -115,8 +115,13 @@ class Settings(BaseSettings):
     enable_rerank: bool = True
     reranker_backend: Literal["cross_encoder", "gemini"] = "cross_encoder"
     reranker_model: str = "BAAI/bge-reranker-base"
-    rerank_threshold: float = 0.05
+    reranker_max_length: int = Field(default=512, ge=64, le=1024)
+    # Only the top-N fused candidates are rescored: cross-encoders are accurate but slow.
+    rerank_candidates: int = Field(default=20, ge=1, le=200)
+    # Calibrated on the sample corpus: weakest real evidence ~0.23, unanswerable questions <= 0.07.
+    rerank_threshold: float = Field(default=0.1, ge=0.0, le=1.0)
     context_token_budget: int = Field(default=6000, ge=500)
+    # Previous chat messages (user + assistant) used to condense follow-up questions.
     history_turns: int = Field(default=6, ge=0, le=50)
 
     # ------------------------------------------------------------------ agent
