@@ -82,3 +82,6 @@ desktop.ini
 # Logs
 *.log
 logs/
+
+# Local tool configuration (e.g. Claude Code preview launchers)
+.claude/
