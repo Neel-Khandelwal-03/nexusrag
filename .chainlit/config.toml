@@ -38,8 +38,9 @@ user_message_autoscroll = true
 # Autoscroll new assistant messages
 assistant_message_autoscroll = true
 
-# Automatically tag threads with the current chat profile (if a chat profile is used)
-auto_tag_thread = true
+# Automatically tag threads with the current chat profile (if a chat profile is used).
+# Off: the SQLAlchemy data layer binds tags as a list, which SQLite can't store.
+auto_tag_thread = false
 
 # Allow users to edit their own messages
 edit_message = true
@@ -56,8 +57,9 @@ reaction_on_message_received = false
 
 # Authorize users to spontaneously upload files with messages
 [features.spontaneous_file_upload]
-    # Enabled in phase 6 together with type/size limits and per-user rate limiting.
-    enabled = false
+    # The app re-checks type, size and count server-side (MAX_UPLOAD_MB, MAX_UPLOAD_FILES)
+    # and rate-limits uploads per user (RATE_LIMIT_UPLOADS_PER_HOUR).
+    enabled = true
     # Define accepted file types using MIME types
     # Examples:
     # 1. For specific file types:
@@ -67,7 +69,8 @@ reaction_on_message_received = false
     # 3. For specific file extensions:
     #    accept = { "application/octet-stream" = [".xyz", ".pdb"] }
     # Note: Using "*/*" is not recommended as it may cause browser warnings
-    accept = ["application/pdf", "text/plain", "text/markdown"]
+    # MIME types plus extensions: browsers often report .md files with no MIME type.
+    accept = { "application/pdf" = [".pdf"], "application/vnd.openxmlformats-officedocument.wordprocessingml.document" = [".docx"], "text/markdown" = [".md", ".markdown"], "text/plain" = [".txt"] }
     max_files = 10
     max_size_mb = 20
 

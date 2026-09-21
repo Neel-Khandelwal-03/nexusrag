@@ -23,8 +23,10 @@ chroma/
 *.pkl
 .files/
 
-# Chainlit generated artefacts (translations are regenerated on start)
-.chainlit/translations/
+# Chainlit generated artefacts (translations are regenerated on start). en-US is kept:
+# it customises the step labels, and other languages fall back to it.
+.chainlit/translations/*
+!.chainlit/translations/en-US.json
 
 # ---------------------------------------------------------------------------
 # Model / tool caches
