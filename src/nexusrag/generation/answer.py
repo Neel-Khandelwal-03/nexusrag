@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from nexusrag.generation.citations import build_citations, strip_invalid_markers
-from nexusrag.llm.gemini_client import GeminiClient
+from nexusrag.llm.gemini_client import GeminiClient, ModelRole
 from nexusrag.llm.prompts import (
     ANSWER_STYLES,
     ANSWER_SYSTEM,
@@ -92,6 +92,54 @@ def is_refusal(text: str) -> bool:
     return normalise(text).startswith(normalise(REFUSAL_MESSAGE).rstrip("."))
 
 
+async def stream_text(
+    gemini: GeminiClient,
+    prompt: str,
+    *,
+    system_instruction: str,
+    stage: str,
+    role: ModelRole = "main",
+    on_token: TokenCallback | None = None,
+    on_reset: ResetCallback | None = None,
+) -> str:
+    """Stream a completion to ``on_token`` and return the full text.
+
+    If the model fails mid-answer, the client restarts once on the fallback model. It awaits
+    ``on_reset`` first so the caller can clear what was already displayed. Without a reset
+    hook a streaming caller can't un-show text, so no restart happens.
+    """
+    parts: list[str] = []
+
+    async def restart() -> None:
+        parts.clear()
+        if on_reset is not None:
+            await on_reset()
+
+    can_restart = on_token is None or on_reset is not None
+    async for delta in gemini.stream(
+        prompt,
+        role=role,
+        system_instruction=system_instruction,
+        stage=stage,
+        on_restart=restart if can_restart else None,
+    ):
+        parts.append(delta)
+        if on_token is not None:
+            await on_token(delta)
+    return "".join(parts).strip()
+
+
+def finalize(raw: str, passages: Sequence[ContextPassage]) -> GeneratedAnswer:
+    """Clean citation markers and resolve them against ``passages``."""
+    text = strip_invalid_markers(raw, {p.index for p in passages})
+    return GeneratedAnswer(
+        text=text,
+        citations=build_citations(text, passages),
+        refused=is_refusal(text),
+        edited=text != raw,
+    )
+
+
 class AnswerGenerator:
     """Streams a grounded, cited answer from the main model."""
 
@@ -106,12 +154,12 @@ class AnswerGenerator:
         style: AnswerStyle = "detailed",
         on_token: TokenCallback | None = None,
         on_reset: ResetCallback | None = None,
+        extra_instructions: str | None = None,
     ) -> GeneratedAnswer:
         """Answer ``question`` from ``passages``, streaming tokens to ``on_token``.
 
-        If the model fails mid-answer, generation restarts once on the fallback model.
-        ``on_reset`` is awaited first so the caller can clear what was already displayed.
-        Without a reset hook, a streaming caller can't un-show text, so no restart happens.
+        ``extra_instructions`` are appended to the system prompt (used by the stricter
+        regeneration after a failed groundedness check).
         """
         if not passages:
             # Nothing retrieved: refuse without spending an LLM call.
@@ -119,30 +167,12 @@ class AnswerGenerator:
                 await on_token(REFUSAL_MESSAGE)
             return GeneratedAnswer(text=REFUSAL_MESSAGE, refused=True)
 
-        parts: list[str] = []
-
-        async def restart() -> None:
-            parts.clear()
-            if on_reset is not None:
-                await on_reset()
-
-        can_restart = on_token is None or on_reset is not None
-        async for delta in self.gemini.stream(
+        raw = await stream_text(
+            self.gemini,
             build_answer_prompt(question, passages, style),
-            role="main",
-            system_instruction=answer_system_instruction(),
+            system_instruction=answer_system_instruction() + (extra_instructions or ""),
             stage="answer",
-            on_restart=restart if can_restart else None,
-        ):
-            parts.append(delta)
-            if on_token is not None:
-                await on_token(delta)
-
-        raw = "".join(parts).strip()
-        text = strip_invalid_markers(raw, {p.index for p in passages})
-        return GeneratedAnswer(
-            text=text,
-            citations=build_citations(text, passages),
-            refused=is_refusal(text),
-            edited=text != raw,
+            on_token=on_token,
+            on_reset=on_reset,
         )
+        return finalize(raw, passages)

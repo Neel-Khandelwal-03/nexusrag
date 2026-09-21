@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -267,6 +267,16 @@ class StageTiming(BaseModel):
     ms: float
 
 
+class AgentStep(BaseModel):
+    """One node the agent executed, for the transparency UI and the logs."""
+
+    node: str
+    #: One-line human summary, e.g. "Route: doc_qa (asks for a spec value)".
+    label: str
+    ms: float = 0.0
+    detail: dict[str, Any] = Field(default_factory=dict)
+
+
 class Answer(BaseModel):
     """Final result of one chat turn, as rendered by the UI and scored by the eval suite."""
 
@@ -278,7 +288,10 @@ class Answer(BaseModel):
     grounded: bool | None = None
     #: True when the answer says the documents don't cover the question.
     refused: bool = False
+    #: When refusing: the nearest passages found, so the user can see what *is* there.
+    closest_matches: list[Citation] = Field(default_factory=list)
     cached: bool = False
     usage: UsageStats = Field(default_factory=UsageStats)
     timings: list[StageTiming] = Field(default_factory=list)
+    steps: list[AgentStep] = Field(default_factory=list)
     request_id: str | None = None
