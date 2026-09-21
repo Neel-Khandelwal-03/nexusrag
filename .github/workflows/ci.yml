@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [staging, main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The job id doubles as the required status check name in branch protection,
+  # so keep it stable.
+  lint-and-test:
+    name: lint-and-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install tooling
+        run: python -m pip install --upgrade pip ruff pytest
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Pytest
+        run: |
+          # Exit code 5 means "no tests collected", which is expected until the
+          # foundation phase lands. Any other non-zero code fails the build.
+          set +e
+          pytest -q
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then exit "$code"; fi
