@@ -1,0 +1,9 @@
+# Normalise line endings so shell scripts and Dockerfiles work inside Linux
+# containers even when the repo is checked out on Windows.
+* text=auto eol=lf
+
+*.pdf binary
+*.docx binary
+*.png binary
+*.jpg binary
+*.gif binary
