@@ -3,7 +3,9 @@
 Embeddings and BM25 score the query and each passage *independently*, which is fast
 but coarse. A cross-encoder reads the pair jointly and judges relevance much more
 accurately, but it's too slow to run over a whole corpus. So it runs on the top few
-dozen fused candidates only, and its scores decide the final top-k.
+dozen fused candidates only. Its ranking is then fused with the first-stage ranking to
+pick the final top-k, and its score threshold drops irrelevant passages (see
+:func:`rerank`).
 
 Both backends read :func:`~nexusrag.ingestion.chunker.rerank_text`, with Markdown
 tables rewritten as ``Header: value`` lines, which rerankers score far more reliably.
@@ -180,20 +182,49 @@ async def rerank(
     top_k: int,
     threshold: float,
     max_candidates: int,
+    fusion_weight: float = 1.0,
+    rrf_k: int = 60,
 ) -> list[RetrievedChunk]:
     """Rescore the top ``max_candidates``; keep the best ``top_k`` scoring >= ``threshold``.
 
-    Returns copies with ``scores.rerank_score`` set. May return fewer than ``top_k``,
-    or nothing at all, when candidates fall below the threshold. That's intended: it
-    lets the pipeline say "not in your documents" instead of answering from noise.
+    The final order fuses two rankings with RRF: the first-stage (hybrid) order and the
+    reranker's order, with ``fusion_weight`` for the first stage (0 = pure reranker order).
+    Measured on the sample corpus, pure reranking buried the one table holding the answer
+    to "Aurora X1 flight time". BM25, dense search and fusion all ranked it #1, but the
+    cross-encoder scored it 0.12 and put it 6th, outside the top 5. Fusing the rankings
+    kept it (3rd) and raised the right passage's rank on other questions too, so a single
+    noisy reranker score can no longer overrule agreement between both retrievers.
+
+    The threshold still applies to the reranker's own score, so irrelevant passages are
+    dropped. The result may be empty, which lets the pipeline say "not in your documents"
+    instead of answering from noise. Returns copies with ``scores.rerank_score`` set.
     """
+    from nexusrag.retrieval.hybrid import reciprocal_rank_fusion  # local: avoids an import cycle
+
     pool = list(candidates[:max_candidates])
     if not pool:
         return []
     scores = await reranker.score(query, pool)
-    rescored = [
-        rc.model_copy(update={"scores": rc.scores.model_copy(update={"rerank_score": score})})
+    rescored = {
+        rc.chunk.chunk_id: rc.model_copy(
+            update={"scores": rc.scores.model_copy(update={"rerank_score": score})}
+        )
         for rc, score in zip(pool, scores, strict=True)
+    }
+    first_stage = [rc.chunk.chunk_id for rc in pool]
+    by_reranker = sorted(
+        first_stage, key=lambda cid: rescored[cid].scores.rerank_score or 0.0, reverse=True
+    )
+    if fusion_weight > 0:
+        order = [
+            cid
+            for cid, _ in reciprocal_rank_fusion(
+                [first_stage, by_reranker], k=rrf_k, weights=[fusion_weight, 1.0]
+            )
+        ]
+    else:
+        order = by_reranker
+    kept = [
+        rescored[cid] for cid in order if (rescored[cid].scores.rerank_score or 0.0) >= threshold
     ]
-    rescored.sort(key=lambda rc: rc.scores.rerank_score or 0.0, reverse=True)
-    return [rc for rc in rescored if (rc.scores.rerank_score or 0.0) >= threshold][:top_k]
+    return kept[:top_k]
