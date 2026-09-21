@@ -52,3 +52,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `RERANK_THRESHOLD` raised from 0.05 to 0.10 and `RERANK_CANDIDATES` set to 20, after calibrating against real `bge-reranker-base` scores on the sample corpus.
   - New settings `RERANK_CANDIDATES` and `RERANKER_MAX_LENGTH`; optional `rerank` extra (sentence-transformers).
   - Logging writes to the current `sys.stdout`, so swapped streams (test runners, servers) can't cause writes to a closed file.
+- Hardening from the first live runs against the Gemini API:
+  - Model fallback (`GENERATION_FALLBACK_MODEL`, `FAST_FALLBACK_MODEL`). A primary still overloaded (429/5xx) after retries, or returning 404, is replaced once by the backup model. Usage and cost are recorded against the model that actually answered.
+  - Streams stay retryable until the first *visible* text. An answer interrupted after text has appeared is cleared (`on_reset`) and regenerated once on the fallback model.
+  - Retry defaults tuned for interactive latency: 3 attempts per model, backoff capped at 8 s.
+  - The SDK's automatic function calling is disabled (we never pass tools), which removes a warning and an INFO log line on every call.
+  - `.env.example` keeps only secrets active, with every tunable commented out, so a copied `.env` no longer pins old defaults. `.env` is read BOM-tolerantly for Windows editors.

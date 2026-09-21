@@ -117,6 +117,8 @@ All model IDs are configured via environment variables (see [.env.example](.env.
 | `FAST_MODEL` | `gemini-3.5-flash-lite` | Query rewriting, routing, grading |
 | `EMBEDDING_MODEL` | `gemini-embedding-2` (768-d) | Chunk and query embeddings |
 
+**Resilience.** Each call retries transient failures (429, 5xx and timeouts) up to 3 times with jittered backoff capped at 8 s. If the model is still overloaded, or returns "model not found", the call switches to `GENERATION_FALLBACK_MODEL` (`gemini-3.7-flash`) or `FAST_FALLBACK_MODEL` (`gemini-3.1-flash-lite`). An answer interrupted mid-stream is cleared and regenerated once on the fallback model. Embeddings never fall back, because another model's vectors wouldn't match the index.
+
 `gemini-embedding-2` has no `task_type` parameter. Queries are embedded as `task: search result | query: …` and documents as `title: … | text: …`, following Google's guidance for asymmetric retrieval. Temperature is left at the Gemini 3 default unless you set it explicitly.
 
 ## Branching model
