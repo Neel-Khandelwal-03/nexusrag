@@ -28,3 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Incremental pipeline: skips unchanged files, removes stale chunks, reuses vectors for unchanged chunks, optionally prunes deleted files, and reports progress events for the UI.
   - `python -m nexusrag.ingest` CLI (`nexusrag-ingest` console script).
   - Fictional "Skylark Dynamics" sample corpus in `data/` and `scripts/build_sample_docs.py`.
+- Basic retrieval and generation (phase 3):
+  - `Retriever`: dense search plus parent expansion. Parents are deduplicated, kept in rank order and packed within a token budget (with a missing-parent fallback), and metadata filters are supported.
+  - Grounded answer generation: streaming, numbered `<passage>` context, cite-every-sentence rules, an exact refusal phrase, and a prompt-injection guard.
+  - Citation mapping: `[n]`, `[1, 2]` and `[1-3]` markers are parsed, invalid references removed, and each citation carries its parent passage plus the matched chunks.
+  - `RAGService` facade shared by the UI, CLI and (later) evaluation; `python -m nexusrag.ask` terminal client.
+  - Minimal Chainlit app: welcome message listing the knowledge base, streamed answers, clickable `[n]` citations opening side panels, and friendly error messages.
