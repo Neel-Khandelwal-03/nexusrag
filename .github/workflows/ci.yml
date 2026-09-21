@@ -15,31 +15,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The job id doubles as the required status check name in branch protection,
+  # The job name doubles as the required status check in branch protection,
   # so keep it stable.
   lint-and-test:
     name: lint-and-test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      # Tests mock Gemini; make sure no real key could ever be picked up.
+      GEMINI_API_KEY: ""
+      GOOGLE_API_KEY: ""
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
 
-      - name: Install tooling
-        run: python -m pip install --upgrade pip ruff pytest
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
 
-      - name: Ruff
+      - name: Ruff lint
         run: ruff check .
 
+      - name: Ruff format
+        run: ruff format --check .
+
+      - name: Mypy
+        run: mypy
+
       - name: Pytest
-        run: |
-          # Exit code 5 means "no tests collected", which is expected until the
-          # foundation phase lands. Any other non-zero code fails the build.
-          set +e
-          pytest -q
-          code=$?
-          set -e
-          if [ "$code" -ne 0 ] && [ "$code" -ne 5 ]; then exit "$code"; fi
+        run: pytest
