@@ -59,6 +59,8 @@ class KnowledgeBaseStats:
     #: Filled in once the semantic cache exists (phase 7).
     cache_hits: int | None = None
     cache_lookups: int | None = None
+    #: Answers stored in the semantic cache for this knowledge base (None: cache off).
+    cache_entries: int | None = None
 
 
 @dataclass
@@ -114,6 +116,7 @@ class RAGService:
         mode: Route | None = None,
         self_correct: bool | None = None,
         recent_doc_ids: Sequence[str] = (),
+        use_cache: bool | None = None,
         on_token: TokenCallback | None = None,
         on_reset: ResetCallback | None = None,
         on_step: StepCallback | None = None,
@@ -125,7 +128,8 @@ class RAGService:
         ``mode`` forces the summarize/compare routes (chat profiles). ``self_correct``
         overrides ``ENABLE_SELF_CORRECTION`` for this request (used by the evaluation).
         ``recent_doc_ids`` are documents the user just uploaded, so "what is this file
-        about?" resolves to them.
+        about?" resolves to them. ``use_cache`` overrides ``ENABLE_SEMANTIC_CACHE`` (the
+        evaluation turns it off so every question is really answered).
         """
         kb = validate_collection_name(collection or self.settings.default_collection)
         request = AgentRequest(
@@ -140,6 +144,7 @@ class RAGService:
             if self_correct is None
             else self_correct,
             recent_doc_ids=recent_doc_ids,
+            use_cache=self.settings.enable_semantic_cache if use_cache is None else use_cache,
         )
         with (
             request_context(request_id, collection=kb) as rid,
@@ -163,12 +168,14 @@ class RAGService:
                 cited=len(result.citations),
                 refused=result.refused,
                 grounded=result.grounded,
+                cached=result.cached,
                 total_ms=round(total.ms, 1),
                 llm_calls=totals.calls,
                 prompt_tokens=totals.prompt_tokens,
                 output_tokens=totals.output_tokens,
                 cost_usd=round(totals.cost_usd, 6),
             )
+        hit = result.cache_lookup.hit if result.cache_lookup is not None else None
         answer = Answer(
             text=result.text,
             route=result.route,
@@ -176,6 +183,8 @@ class RAGService:
             grounded=result.grounded,
             refused=result.refused,
             closest_matches=result.closest_matches,
+            cached=hit is not None,
+            cache_similarity=hit.similarity if hit is not None else None,
             usage=usage.totals(),
             timings=[StageTiming(stage=step.node, ms=step.ms) for step in result.steps],
             steps=result.steps,
@@ -193,6 +202,9 @@ class RAGService:
         """Counts for the ``/stats`` command."""
         kb = validate_collection_name(collection or self.settings.default_collection)
         documents = self.stores.registry.list_documents(kb)
+        cache = self.stores.cache
+        counters = cache.counters(kb)
+        cache_on = self.settings.enable_semantic_cache
         return KnowledgeBaseStats(
             collection=kb,
             documents=documents,
@@ -201,7 +213,15 @@ class RAGService:
             vectors=self.stores.vectors.count(kb),
             collections=[c.name for c in self.stores.registry.list_collections()],
             usage=process_usage(),
+            cache_hits=counters.hits if cache_on else None,
+            cache_lookups=counters.lookups if cache_on else None,
+            cache_entries=cache.count(kb) if cache_on else None,
         )
+
+    def clear_cache(self, collection: str | None = None) -> int:
+        """Drop the knowledge base's cached answers; returns how many were removed."""
+        kb = validate_collection_name(collection or self.settings.default_collection)
+        return self.stores.cache.invalidate(kb)
 
     def close(self) -> None:
         self.stores.close()

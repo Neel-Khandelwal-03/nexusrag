@@ -253,3 +253,24 @@ def test_warm_up_loads_the_reranker_only_when_enabled(
         svc.warm_up()
         svc.close()
     assert loaded == [True]
+
+
+async def test_stats_and_clear_cache_with_the_cache_on(
+    make_settings: Callable[..., Settings], fake_genai: FakeGenAI, tmp_path: Path
+) -> None:
+    settings = make_settings(storage_dir=tmp_path / "storage", top_k=2, enable_semantic_cache=True)
+    fake_genai.models.embed_fn = keyword_embedder()
+    svc = RAGService(settings, GeminiClient(settings, client=fake_genai), Stores.open(settings))
+    await ingest(svc, tmp_path)
+    fake_genai.models.stream_queue.append([make_response("Stipend is 600 USD [1].")])
+    first = await svc.ask("What is the home office stipend?")
+    second = await svc.ask("What is the home office stipend?")
+    assert (first.answer.cached, second.answer.cached) == (False, True)
+    stats = svc.stats()
+    assert (stats.cache_hits, stats.cache_lookups, stats.cache_entries) == (1, 2, 1)
+    assert svc.clear_cache() == 1
+    assert svc.stats().cache_entries == 0
+    fake_genai.models.stream_queue.append([make_response("Stipend is 600 USD [1].")])
+    third = await svc.ask("What is the home office stipend?", use_cache=False)
+    assert "check_cache" not in [s.node for s in third.answer.steps]
+    svc.close()
