@@ -73,7 +73,7 @@ def load_dataset(path: Path = DEFAULT_PATH) -> list[EvalItem]:
 
 def save_dataset(items: Sequence[EvalItem], path: Path = DEFAULT_PATH) -> None:
     lines = [json.dumps(item.model_dump(), ensure_ascii=False) for item in items]
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
 _MARKDOWN_RE = re.compile(r"[|*_`#>]+")

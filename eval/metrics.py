@@ -313,7 +313,9 @@ def markdown_table(summaries: Sequence[ConfigSummary], labels: dict[str, str], k
 
 def write_summary_csv(summaries: Sequence[ConfigSummary], path: Path) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=[f.name for f in fields(ConfigSummary)])
+        writer = csv.DictWriter(
+            handle, fieldnames=[f.name for f in fields(ConfigSummary)], lineterminator="\n"
+        )
         writer.writeheader()
         for s in summaries:
             writer.writerow(asdict(s))
@@ -322,7 +324,7 @@ def write_summary_csv(summaries: Sequence[ConfigSummary], path: Path) -> None:
 def write_results_csv(results: Sequence[QuestionResult], path: Path) -> None:
     columns = [name for name in QuestionResult.model_fields if name != "passages"]
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer = csv.DictWriter(handle, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
         for r in results:
             row = r.model_dump(include=set(columns))

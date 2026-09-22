@@ -415,7 +415,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = report_markdown(
         summaries, results, items, k=k, settings=settings, judge_model=judge_model
     )
-    (run_dir / "summary.md").write_text(report, encoding="utf-8")
+    (run_dir / "summary.md").write_text(report, encoding="utf-8", newline="\n")
     write_summary_csv(summaries, run_dir / "summary.csv")
     write_results_csv([r for name in names for r in results.get(name, [])], run_dir / "results.csv")
     shutil.copyfile(run_dir / "summary.md", REPORTS_DIR / "latest.md")
