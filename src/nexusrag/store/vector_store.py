@@ -224,6 +224,20 @@ class VectorStore:
             for cid, doc, meta in zip(result["ids"], documents, metadatas, strict=True)
         }
 
+    def chunks_for_parent(self, knowledge_base: str, parent_id: str) -> list[Chunk]:
+        """Child chunks of one parent section, in document order (used by the evaluation)."""
+        collection = self._collection(knowledge_base, create=False)
+        if collection is None:
+            return []
+        result = collection.get(where={"parent_id": parent_id}, include=["documents", "metadatas"])
+        documents = result.get("documents") or []
+        metadatas = result.get("metadatas") or []
+        chunks = [
+            _chunk_from_record(cid, doc or "", dict(meta or {}))
+            for cid, doc, meta in zip(result["ids"], documents, metadatas, strict=True)
+        ]
+        return sorted(chunks, key=lambda c: c.chunk_id)
+
     def count(self, knowledge_base: str) -> int:
         collection = self._collection(knowledge_base, create=False)
         return 0 if collection is None else collection.count()
