@@ -20,6 +20,7 @@ import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Literal, TypeAlias, TypeVar
@@ -60,6 +61,27 @@ QUERY_TEMPLATE = "task: search result | query: {text}"
 DOCUMENT_TEMPLATE = "title: {title} | text: {text}"
 # Legacy models (gemini-embedding-001) use task types instead of prefixes.
 TASK_TYPES: dict[EmbedKind, str] = {"query": "RETRIEVAL_QUERY", "document": "RETRIEVAL_DOCUMENT"}
+
+#: Query embeddings already computed in the current request (see query_embedding_memo).
+_query_memo: ContextVar[dict[str, list[float]] | None] = ContextVar(
+    "query_embedding_memo", default=None
+)
+
+
+@contextmanager
+def query_embedding_memo() -> Iterator[None]:
+    """Reuse query embeddings within a block (one agent run).
+
+    The semantic cache embeds the standalone question, and retrieval then embeds it
+    again with its rewrites; inside this block the second call reuses the vector.
+    Concurrent tasks started inside the block share the memo.
+    """
+    token = _query_memo.set({})
+    try:
+        yield
+    finally:
+        _query_memo.reset(token)
+
 
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
 
@@ -517,10 +539,21 @@ class GeminiClient:
 
     async def embed_queries(self, texts: Sequence[str]) -> list[list[float]]:
         """Embed search queries (the original question plus any rewrites)."""
-        use_task_type = self.uses_task_type()
-        inputs = [format_embedding_input(t, "query", use_task_type=use_task_type) for t in texts]
-        task_type = TASK_TYPES["query"] if use_task_type else None
-        return await self._embed(inputs, task_type=task_type, stage="embed.queries")
+        memo = _query_memo.get()
+        missing = [t for t in dict.fromkeys(texts) if memo is None or t not in memo]
+        vectors: dict[str, list[float]] = {}
+        if missing:
+            use_task_type = self.uses_task_type()
+            inputs = [
+                format_embedding_input(t, "query", use_task_type=use_task_type) for t in missing
+            ]
+            task_type = TASK_TYPES["query"] if use_task_type else None
+            embedded = await self._embed(inputs, task_type=task_type, stage="embed.queries")
+            vectors = dict(zip(missing, embedded, strict=True))
+            if memo is not None:
+                memo.update(vectors)
+        known = memo if memo is not None else {}
+        return [vectors[t] if t in vectors else known[t] for t in texts]
 
     async def embed_query(self, text: str) -> list[float]:
         """Embed a single search query."""

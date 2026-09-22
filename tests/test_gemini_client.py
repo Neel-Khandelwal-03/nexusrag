@@ -22,7 +22,7 @@ from nexusrag.llm.gemini_client import (
     parse_structured,
 )
 from nexusrag.llm.usage import track_usage
-from tests.fakes import FakeGenAI, api_error, embedded_texts, make_response
+from tests.fakes import FakeGenAI, api_error, embedded_texts, hash_embedder, make_response
 
 
 class Verdict(BaseModel):
@@ -441,3 +441,20 @@ async def test_fallback_exhausted_raises_friendly_error(
     with pytest.raises(GeminiRateLimitError):
         await with_fallback.generate("q")
     assert len(fake_genai.models.calls) == 6  # 3 attempts on each model
+
+
+async def test_query_embedding_memo_reuses_vectors(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    from nexusrag.llm.gemini_client import query_embedding_memo
+
+    fake_genai.models.embed_fn = hash_embedder()
+    with query_embedding_memo():
+        first = await gemini.embed_query("battery life")
+        both = await gemini.embed_queries(["battery life", "charge time", "battery life"])
+    assert both[0] == first
+    assert both[2] == first
+    calls = fake_genai.models.calls_to("embed_content")
+    assert [len(c["contents"]) for c in calls] == [1, 1]  # only "charge time" was new
+    await gemini.embed_query("battery life")  # outside the block: embedded again
+    assert len(fake_genai.models.calls_to("embed_content")) == 3
