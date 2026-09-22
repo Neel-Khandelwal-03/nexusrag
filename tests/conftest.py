@@ -68,6 +68,8 @@ def make_settings() -> Callable[..., Settings]:
             "fast_fallback_model": None,
             # The agent's graders are opted into by the tests that exercise them.
             "enable_self_correction": False,
+            # So is the semantic cache (it adds an embedding call per question).
+            "enable_semantic_cache": False,
         }
         values.update(overrides)
         return Settings(_env_file=None, **values)  # type: ignore[call-arg]

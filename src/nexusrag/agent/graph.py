@@ -24,6 +24,11 @@ the transparency UI, and there's no framework magic::
                               ▼
                             REFUSE_UNSUPPORTED ─────────────────────────────► DONE
 
+With the semantic cache on, document routes pass through CHECK_CACHE first. A hit (a
+near-identical earlier question, same knowledge base version and settings) goes straight
+to DONE with the stored answer. A miss continues to the route's node, and the final
+answer is stored if it is cited and grounded.
+
 Self-correction (relevance grading, groundedness checking) can be switched off per
 request, which is how the evaluation suite measures what it adds.
 """
@@ -31,8 +36,11 @@ request, which is how the evaluation suite measures what it adds.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import sqlite3
 from collections.abc import Awaitable, Callable, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from typing import Any
 
@@ -58,7 +66,7 @@ from nexusrag.generation.modes import (
     DocumentSummarizer,
     chitchat_reply,
 )
-from nexusrag.llm.gemini_client import GeminiClient
+from nexusrag.llm.gemini_client import GeminiClient, GeminiError, query_embedding_memo
 from nexusrag.llm.prompts import (
     ASK_WHICH_DOCUMENT,
     OUT_OF_SCOPE_MESSAGE,
@@ -69,6 +77,7 @@ from nexusrag.llm.prompts import (
 from nexusrag.log import get_logger, timed
 from nexusrag.models import (
     AgentStep,
+    Answer,
     ChatTurn,
     Citation,
     ContextPassage,
@@ -84,6 +93,7 @@ from nexusrag.retrieval.retriever import (
 )
 from nexusrag.store import Stores
 from nexusrag.store.registry import DocumentRecord
+from nexusrag.store.semantic_cache import CacheKey, CacheLookup
 
 log = get_logger(__name__)
 
@@ -96,6 +106,11 @@ TRACE_ROWS = 8
 #: Hard stop for runaway loops; the longest legitimate path is about 10 steps.
 MAX_STEPS = 20
 
+#: Routes whose answers come from the documents, and so can be cached.
+CACHEABLE_ROUTES = frozenset({Route.DOC_QA, Route.SUMMARIZE, Route.COMPARE})
+#: Bump when prompts or the stored answer format change, so old entries stop matching.
+CACHE_FORMAT = 1
+
 UNSUPPORTED_MESSAGE = (
     f"{REFUSAL_MESSAGE} The passages I found don't support a reliable answer, so I'm showing "
     "the closest matches instead of guessing."
@@ -104,6 +119,7 @@ UNSUPPORTED_MESSAGE = (
 
 class Node(StrEnum):
     ROUTE = "route"
+    CHECK_CACHE = "check_cache"
     CHITCHAT = "chitchat"
     OUT_OF_SCOPE = "out_of_scope"
     SUMMARIZE = "summarize"
@@ -132,6 +148,8 @@ class AgentRequest:
     self_correct: bool = True
     #: Documents the user just uploaded: what "this file" or "this project" refers to.
     recent_doc_ids: Sequence[str] = ()
+    #: Look up and store answers in the semantic cache.
+    use_cache: bool = False
 
 
 @dataclass
@@ -163,6 +181,10 @@ class AgentState:
     grounded: bool | None = None
     closest: list[Citation] = field(default_factory=list)
     steps: list[AgentStep] = field(default_factory=list)
+    #: Where to go after CHECK_CACHE on a miss.
+    after_cache: Node | None = None
+    cache_key: CacheKey | None = None
+    cache_lookup: CacheLookup | None = None
 
     @property
     def route(self) -> Route:
@@ -187,6 +209,44 @@ class AgentResult:
     retrievals: list[RetrievalResult]
     steps: list[AgentStep]
     decision: RouteDecision | None
+    cache_lookup: CacheLookup | None = None
+
+    @property
+    def cached(self) -> bool:
+        return self.cache_lookup is not None and self.cache_lookup.hit is not None
+
+
+def cache_fingerprint(
+    settings: Settings,
+    request: AgentRequest,
+    decision: RouteDecision,
+    options: RetrievalOptions,
+    filters: SearchFilters | None,
+) -> str:
+    """Hash of everything besides the question that shapes an answer.
+
+    Two questions share a cached answer only if these match: the route (and, for
+    summaries and comparisons, which documents), the search scope actually used, answer
+    style, retrieval switches, self-correction and the models.
+    """
+    payload = {
+        "format": CACHE_FORMAT,
+        "route": decision.route.value,
+        # For doc_qa, router targets only matter through `filters` (the search scope).
+        "targets": [] if decision.route == Route.DOC_QA else sorted(decision.doc_ids),
+        "style": request.style,
+        "filters": None
+        if filters is None or filters.is_empty
+        else {
+            "doc_ids": sorted(filters.doc_ids or []),
+            "filenames": sorted(filters.filenames or []),
+            "source_types": sorted(t.value for t in filters.source_types or []),
+        },
+        "options": asdict(options),
+        "self_correct": request.self_correct,
+        "models": [settings.generation_model, settings.embedding_model, settings.embedding_dim],
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def merge_round_robin(
@@ -262,6 +322,7 @@ class AgentGraph:
             Node, Callable[[AgentState], Awaitable[tuple[Node, str, dict[str, Any]]]]
         ] = {
             Node.ROUTE: self._route,
+            Node.CHECK_CACHE: self._check_cache,
             Node.CHITCHAT: self._chitchat,
             Node.OUT_OF_SCOPE: self._out_of_scope,
             Node.SUMMARIZE: self._summarize,
@@ -292,22 +353,26 @@ class AgentGraph:
             request=request, documents=documents, callbacks=_Callbacks(on_token, on_reset)
         )
         node = Node.ROUTE
-        for _ in range(MAX_STEPS):
-            if node is Node.DONE:
-                break
-            if on_node_start is not None:
-                await on_node_start(node.value)
-            with timed() as t:
-                next_node, label, detail = await self._nodes[node](state)
-            step = AgentStep(node=node.value, label=label, ms=t.ms, detail=detail)
-            state.steps.append(step)
-            log.info("agent.step", node=node.value, next=next_node.value, ms=round(t.ms, 1))
-            if on_step is not None:
-                await on_step(step)
-            node = next_node
-        else:
-            raise RuntimeError(f"agent exceeded {MAX_STEPS} steps")
-        return self._result(state)
+        # The cache check and retrieval embed the same question: embed it once.
+        with query_embedding_memo():
+            for _ in range(MAX_STEPS):
+                if node is Node.DONE:
+                    break
+                if on_node_start is not None:
+                    await on_node_start(node.value)
+                with timed() as t:
+                    next_node, label, detail = await self._nodes[node](state)
+                step = AgentStep(node=node.value, label=label, ms=t.ms, detail=detail)
+                state.steps.append(step)
+                log.info("agent.step", node=node.value, next=next_node.value, ms=round(t.ms, 1))
+                if on_step is not None:
+                    await on_step(step)
+                node = next_node
+            else:
+                raise RuntimeError(f"agent exceeded {MAX_STEPS} steps")
+        result = self._result(state)
+        await self._store_in_cache(state, result)
+        return result
 
     def _result(self, state: AgentState) -> AgentResult:
         generated = state.generated or GeneratedAnswer(text="")
@@ -322,7 +387,31 @@ class AgentGraph:
             retrievals=state.retrievals,
             steps=state.steps,
             decision=state.decision,
+            cache_lookup=state.cache_lookup,
         )
+
+    async def _store_in_cache(self, state: AgentState, result: AgentResult) -> None:
+        """Keep a fresh answer for reuse if it is cited, grounded and not a refusal."""
+        key = state.cache_key
+        if key is None or result.cached:
+            return
+        if (
+            result.route not in CACHEABLE_ROUTES
+            or result.refused
+            or not result.citations
+            or result.grounded is False
+        ):
+            return
+        answer = Answer(
+            text=result.text,
+            route=result.route,
+            citations=result.citations,
+            grounded=result.grounded,
+        )
+        try:
+            await asyncio.to_thread(self.stores.cache.put, key, answer)
+        except sqlite3.Error as exc:  # the cache is an optimisation: never fail the turn
+            log.warning("cache.store_failed", error_type=type(exc).__name__)
 
     # ------------------------------------------------------------------ helpers
 
@@ -351,12 +440,19 @@ class AgentGraph:
         return self._documents_by_id(state, ids)
 
     def _retrieval_filters(self, state: AgentState) -> SearchFilters | None:
-        """The UI's document filter, else the documents a question explicitly points at."""
+        """The UI's document filter, else just-uploaded documents a question points at.
+
+        Router targets outside the fresh uploads don't restrict the search: a question
+        naming a product ("the Aurora X1's price") may be answered by another document
+        (a sales report), and hybrid search finds the named one anyway.
+        """
         request, decision = state.request, state.decision
         if request.filters is not None and not request.filters.is_empty:
             return request.filters
         if decision is not None and decision.route == Route.DOC_QA and decision.doc_ids:
-            return SearchFilters(doc_ids=decision.doc_ids)
+            recent = set(request.recent_doc_ids)
+            if recent and set(decision.doc_ids) <= recent:
+                return SearchFilters(doc_ids=decision.doc_ids)
         return request.filters
 
     def _set_closest(self, state: AgentState) -> None:
@@ -387,6 +483,8 @@ class AgentGraph:
             Route.COMPARE: Node.COMPARE,
             Route.DOC_QA: Node.RETRIEVE,
         }[decision.route]
+        if request.use_cache and decision.route in CACHEABLE_ROUTES:
+            state.after_cache, next_node = next_node, Node.CHECK_CACHE
         targets = [d.filename for d in self._documents_by_id(state, decision.doc_ids)]
         reason = f" ({decision.reason})" if decision.reason else ""
         return (
@@ -400,6 +498,58 @@ class AgentGraph:
                 "from_model": decision.from_model,
             },
         )
+
+    async def _check_cache(self, state: AgentState) -> tuple[Node, str, dict[str, Any]]:
+        request, decision, after = state.request, state.decision, state.after_cache
+        assert decision is not None
+        assert after is not None
+        threshold = self.settings.cache_similarity_threshold
+        try:
+            embedding = await self.gemini.embed_query(state.standalone)
+        except GeminiError as exc:
+            log.warning("cache.embed_failed", error_type=type(exc).__name__)
+            return after, "Semantic cache: skipped (embedding failed)", {"hit": False}
+        version = await asyncio.to_thread(self.stores.registry.version, request.collection)
+        key = CacheKey(
+            collection=request.collection,
+            version=version,
+            fingerprint=cache_fingerprint(
+                self.settings,
+                request,
+                decision,
+                self._options(state),
+                self._retrieval_filters(state),
+            ),
+            question=state.standalone,
+            embedding=embedding,
+        )
+        lookup = await asyncio.to_thread(self.stores.cache.lookup, key, threshold)
+        state.cache_key, state.cache_lookup = key, lookup
+        detail: dict[str, Any] = {
+            "hit": lookup.hit is not None,
+            "similarity": round(lookup.best_similarity, 4),
+            "threshold": threshold,
+            "candidates": lookup.candidates,
+            "blocked_by_key_terms": lookup.blocked_by_key_terms,
+        }
+        if lookup.hit is None:
+            if lookup.blocked_by_key_terms:
+                why = " (a similar question asked about different numbers or codes)"
+            elif lookup.candidates:
+                why = f" (closest {lookup.best_similarity:.3f}, needs {threshold:.2f})"
+            else:
+                why = ""
+            return after, f"Semantic cache: miss{why}", detail
+        hit = lookup.hit
+        state.generated = GeneratedAnswer(text=hit.answer.text, citations=hit.answer.citations)
+        state.grounded = hit.answer.grounded
+        await self._emit(state, hit.answer.text)
+        detail |= {
+            "cached_question": hit.question,
+            "cached_at": hit.created_at.isoformat(),
+            "hits": hit.hits,
+        }
+        return Node.DONE, f"Semantic cache: hit (similarity {hit.similarity:.3f})", detail
 
     async def _chitchat(self, state: AgentState) -> tuple[Node, str, dict[str, Any]]:
         state.generated = await chitchat_reply(

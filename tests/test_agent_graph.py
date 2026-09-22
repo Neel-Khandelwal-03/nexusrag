@@ -18,7 +18,14 @@ from nexusrag.models import AgentStep, Route, SearchFilters
 from nexusrag.retrieval.retriever import RetrievalOptions
 from nexusrag.service import RAGService
 from nexusrag.store import Stores
-from tests.fakes import FakeGenAI, json_response, keyword_embedder, make_response, router_response
+from tests.fakes import (
+    FakeGenAI,
+    api_error,
+    json_response,
+    keyword_embedder,
+    make_response,
+    router_response,
+)
 
 DOCS = {
     # Catalog numbers follow filename order: 1 = aurora.md, 2 = borealis.md, 3 = policy.md
@@ -504,6 +511,18 @@ async def test_question_about_a_specific_document_searches_only_that_document(
     assert {rc.chunk.metadata.filename for rc in result.retrievals[0].chunks} == {"policy.md"}
 
 
+async def test_named_documents_outside_fresh_uploads_do_not_restrict_the_search(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    # "The Aurora X1's price" may live in a sales report, not the spec the router names.
+    script.add("route", router_response("doc_qa", "How long is the flight time?", documents=[1]))
+    script.add("relevance", json_response(sufficient=True))
+    script.add("grounded", json_response(grounded=True, unsupported_claims=[]))
+    stream(fake_genai, "46 minutes [1].")
+    result = await service.ask("How long is the Aurora flight time?")
+    assert result.answer.steps[1].detail["scope"] == []
+
+
 async def test_ui_document_filter_wins_over_the_router(
     service: RAGService, fake_genai: FakeGenAI, script: Script
 ) -> None:
@@ -576,3 +595,112 @@ def test_merge_round_robin() -> None:
     ]
     merged = merge_round_robin(first, [*second, first[0]], limit=4)
     assert [rc.chunk.chunk_id for rc in merged] == ["c0", "s0", "c1", "s1"]
+
+
+# --------------------------------------------------------------------------- semantic cache
+
+
+def answerable(
+    script: Script, fake: FakeGenAI, text: str = "A full charge takes 75 minutes [1]."
+) -> None:
+    script.add("route", router_response("doc_qa", "How long does charging the battery take?"))
+    script.add("relevance", json_response(sufficient=True))
+    script.add("grounded", json_response(grounded=True, unsupported_claims=[]))
+    stream(fake, text)
+
+
+def embed_calls(fake: FakeGenAI) -> int:
+    return len(fake.models.calls_to("embed_content"))
+
+
+async def test_repeated_question_is_served_from_the_cache(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    answerable(script, fake_genai)
+    before = embed_calls(fake_genai)
+    first = await service.ask("how long to charge?", use_cache=True)
+    assert not first.answer.cached
+    assert nodes(first.answer.steps)[:3] == ["route", "check_cache", "retrieve"]
+    assert first.answer.steps[1].detail["hit"] is False
+    # The cache check and retrieval share one embedding of the question.
+    assert embed_calls(fake_genai) - before == 1
+
+    ui = UI()
+    second = await service.ask("how long does it take to charge?", use_cache=True, **ui.kwargs())
+    answer = second.answer
+    assert answer.cached
+    assert nodes(answer.steps) == ["route", "check_cache"]
+    assert answer.cache_similarity == pytest.approx(1.0, abs=1e-5)
+    assert ui.text == "A full charge takes 75 minutes [1]."
+    assert answer.citations == first.answer.citations
+    assert answer.grounded is True
+    assert second.retrievals == []
+    assert len(fake_genai.models.calls_to("generate_content_stream")) == 1  # generated once
+    detail = answer.steps[1].detail
+    assert detail["cached_question"] == "How long does charging the battery take?"
+    assert detail["hits"] == 1
+    stats = service.stats()
+    assert service.stores.cache.count("default") == 1
+    assert (stats.cache_hits, stats.cache_lookups) == (None, None)  # cache off in settings
+
+
+async def test_other_settings_do_not_share_cached_answers(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    answerable(script, fake_genai)
+    await service.ask("how long to charge?", use_cache=True)
+    stream(fake_genai, "75 minutes [1].")
+    concise = await service.ask("how long to charge?", use_cache=True, style="concise")
+    assert not concise.answer.cached
+    assert concise.answer.steps[1].detail["candidates"] == 0  # different fingerprint
+
+
+async def test_ingestion_invalidates_cached_answers(
+    service: RAGService, fake_genai: FakeGenAI, script: Script, tmp_path: Path
+) -> None:
+    answerable(script, fake_genai)
+    await service.ask("how long to charge?", use_cache=True)
+    assert service.stores.cache.count("default") == 1
+    path = tmp_path / "notes.md"
+    path.write_text("# Notes\n\n## Charging\n\nFast charging takes 40 minutes.\n", encoding="utf-8")
+    pipe = IngestionPipeline(service.settings, service.gemini, service.stores)
+    assert (await pipe.ingest_file(path, collection="default")).status == "indexed"
+    assert service.stores.cache.count("default") == 0
+
+    stream(fake_genai, "A full charge takes 75 minutes [1].")
+    again = await service.ask("how long to charge?", use_cache=True)
+    assert not again.answer.cached
+
+
+async def test_refusals_and_chitchat_are_not_cached(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    script.add("route", router_response("doc_qa", "What is the CEO's salary?"))
+    script.add("relevance", json_response(sufficient=True))
+    stream(fake_genai, REFUSAL_MESSAGE)
+    refused = await service.ask("What is the CEO's salary?", use_cache=True)
+    assert refused.answer.refused
+    assert service.stores.cache.count("default") == 0
+
+    stream(fake_genai, "Hello! Ask me about your documents.")
+    greeting = await service.ask("hi", use_cache=True)
+    assert "check_cache" not in nodes(greeting.answer.steps)
+
+
+async def test_cache_is_skipped_when_embedding_fails(
+    service: RAGService, fake_genai: FakeGenAI, script: Script
+) -> None:
+    answerable(script, fake_genai)
+    embed = fake_genai.models.embed_fn
+    failures = [api_error(400, "embedding failed")]
+
+    def flaky(*args: Any, **kwargs: Any) -> Any:
+        if failures:
+            raise failures.pop()
+        return embed(*args, **kwargs)
+
+    fake_genai.models.embed_fn = flaky
+    result = await service.ask("how long to charge?", use_cache=True)
+    assert result.answer.steps[1].label == "Semantic cache: skipped (embedding failed)"
+    assert result.answer.citations  # answered normally
+    assert service.stores.cache.count("default") == 0  # nothing to key it by
