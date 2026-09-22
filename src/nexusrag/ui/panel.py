@@ -7,6 +7,7 @@ from collections.abc import Sequence
 from chainlit.input_widget import InputWidget, MultiSelect, Select, Slider, Switch, TextInput
 
 from nexusrag.ui.state import (
+    W_CACHE,
     W_COLLECTION,
     W_DOCUMENTS,
     W_HYBRID,
@@ -75,6 +76,11 @@ def settings_widgets(
             id=W_SELF_CORRECT,
             label="Self-correction (grade, retry, check groundedness)",
             initial=ui.self_correct,
+        ),
+        Switch(
+            id=W_CACHE,
+            label="Semantic cache (reuse answers to near-identical questions)",
+            initial=ui.cache,
         ),
         Select(
             id=W_STYLE,

@@ -18,6 +18,7 @@ from nexusrag.ui.auth import (
 from nexusrag.ui.state import (
     CLOSEST_MARKER,
     SOURCES_MARKER,
+    W_CACHE,
     W_COLLECTION,
     W_DOCUMENTS,
     W_RERANK,
@@ -46,6 +47,12 @@ def test_updated_coerces_widget_values(settings: Settings) -> None:
     new = ui.updated({W_TOP_K: 7.0, W_RERANK: True, W_STYLE: "concise", W_DOCUMENTS: ["a.pdf", ""]})
     assert (new.top_k, new.rerank, new.style, new.documents) == (7, True, "concise", ["a.pdf"])
     assert ui.top_k == settings.top_k  # the original is unchanged
+
+
+def test_cache_switch(make_settings: Callable[..., Settings]) -> None:
+    ui = UISettings.defaults(make_settings(enable_semantic_cache=True))
+    assert ui.cache is True
+    assert ui.updated({W_CACHE: False}).cache is False
 
 
 def test_updated_ignores_missing_values_and_clears_empty_filter(settings: Settings) -> None:
