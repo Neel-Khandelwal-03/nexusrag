@@ -78,6 +78,7 @@ def closest_matches_footer(matches: Sequence[Citation]) -> str:
 
 _STEP_TITLES = {
     "route": "Route the request",
+    "check_cache": "Check semantic cache",
     "retrieve": "Retrieve passages",
     "grade_relevance": "Check relevance",
     "generate": "Write the answer",
@@ -160,6 +161,8 @@ def step_markdown(step: AgentStep) -> str:
             reranker = d.get("reranker") or "none"
             parts += ["", f"**Kept for the answer** (reranker: {reranker})", ""]
             parts.append(_ranking_table(kept, with_rerank=True))
+    elif step.node == "check_cache":
+        parts.append(_cache_detail(d))
     elif step.node == "grade_relevance":
         parts.append(f"- Sufficient: {'yes' if d.get('sufficient') else 'no'}")
         if d.get("missing"):
@@ -176,6 +179,34 @@ def step_markdown(step: AgentStep) -> str:
         documents = [documents] if isinstance(documents, str) else documents
         parts.append("- Documents: " + ", ".join(f"`{x}`" for x in documents))
     return "\n".join(parts)
+
+
+def _cache_detail(d: Mapping[str, Any]) -> str:
+    threshold = d.get("threshold")
+    need = f" (needs {threshold:.2f})" if isinstance(threshold, int | float) else ""
+    if d.get("hit"):
+        lines = [f"- Similarity {d.get('similarity', 0):.3f}{need}"]
+        if d.get("cached_question"):
+            lines.append(f"- Matched earlier question: *{d['cached_question']}*")
+        if d.get("cached_at"):
+            lines.append(f"- Cached {str(d['cached_at'])[:16].replace('T', ' ')} UTC")
+        if d.get("hits"):
+            lines.append(f"- Reused {d['hits']} time{'s' if d['hits'] != 1 else ''}")
+        lines.append("- Retrieval and generation skipped")
+        return "\n".join(lines)
+    candidates = d.get("candidates") or 0
+    if not candidates:
+        return "- No cached answers for this knowledge base and these settings yet"
+    lines = [f"- Closest of {candidates} cached answers: {d.get('similarity', 0):.3f}{need}"]
+    if d.get("blocked_by_key_terms"):
+        lines.append("- A closer question asked about different numbers or codes (not reused)")
+    return "\n".join(lines)
+
+
+def cache_note(similarity: float | None) -> str:
+    """Line appended to answers served from the semantic cache."""
+    match = f" ({similarity:.0%} match)" if similarity is not None else ""
+    return f"*⚡ Answered from the semantic cache{match}: an earlier answer to the same question.*"
 
 
 def steps_markdown(steps: Sequence[AgentStep]) -> str:
@@ -216,11 +247,17 @@ def progress_markdown(event: ProgressEvent) -> str:
 def stats_markdown(stats: KnowledgeBaseStats) -> str:
     """The /stats report."""
     u = stats.usage
-    if stats.cache_lookups:
-        rate = (stats.cache_hits or 0) / stats.cache_lookups
-        cache = f"{stats.cache_hits}/{stats.cache_lookups} hits ({rate:.0%})"
+    if stats.cache_lookups is None:
+        cache = "off"
     else:
-        cache = "no lookups yet" if stats.cache_lookups == 0 else "not enabled yet"
+        if stats.cache_lookups:
+            rate = (stats.cache_hits or 0) / stats.cache_lookups
+            cache = f"{stats.cache_hits}/{stats.cache_lookups} hits ({rate:.0%}) since start"
+        else:
+            cache = "no lookups since start"
+        if stats.cache_entries is not None:
+            plural = "" if stats.cache_entries == 1 else "s"
+            cache += f", {stats.cache_entries} answer{plural} stored"
     lines = [
         f"### Knowledge base `{stats.collection}`",
         "",
@@ -263,7 +300,7 @@ def welcome_markdown(collection: str, documents: Sequence[DocumentRecord]) -> st
         f"{len(documents)} documents, {chunks} chunks.\n\n{listing}{more}\n\n"
         "Ask a question and every answer cites its sources: click a `[n]` marker to see "
         "the exact passage. Drag in more files, add a web page, switch mode (Q&A, "
-        "Summarize, Compare) at the top, or type `/stats`."
+        "Summarize, Compare) at the top, or type `/stats` and `/clear-cache`."
     )
 
 

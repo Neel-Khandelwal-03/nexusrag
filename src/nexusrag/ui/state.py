@@ -27,6 +27,7 @@ W_MULTI_QUERY = "multi_query"
 W_HYDE = "hyde"
 W_RERANK = "rerank"
 W_SELF_CORRECT = "self_correct"
+W_CACHE = "cache"
 W_STYLE = "style"
 
 #: Marker that separates an answer from the sources footer in stored messages.
@@ -44,6 +45,7 @@ class UISettings(BaseModel):
     hyde: bool
     rerank: bool
     self_correct: bool
+    cache: bool = True
     style: Literal["concise", "detailed"] = "detailed"
     #: Filenames to restrict retrieval to; empty means the whole knowledge base.
     documents: list[str] = Field(default_factory=list)
@@ -58,6 +60,7 @@ class UISettings(BaseModel):
             hyde=settings.enable_hyde,
             rerank=settings.enable_rerank,
             self_correct=settings.enable_self_correction,
+            cache=settings.enable_semantic_cache,
         )
 
     def updated(self, values: Mapping[str, Any]) -> UISettings:
@@ -71,6 +74,7 @@ class UISettings(BaseModel):
             W_HYDE: "hyde",
             W_RERANK: "rerank",
             W_SELF_CORRECT: "self_correct",
+            W_CACHE: "cache",
             W_STYLE: "style",
         }
         for widget, field in mapping.items():

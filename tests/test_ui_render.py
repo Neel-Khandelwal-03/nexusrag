@@ -9,6 +9,7 @@ from nexusrag.models import AgentStep, Citation, SourceType, UsageStats
 from nexusrag.service import KnowledgeBaseStats
 from nexusrag.store.registry import DocumentRecord
 from nexusrag.ui.render import (
+    cache_note,
     pdf_element_name,
     progress_markdown,
     sources_footer,
@@ -182,12 +183,15 @@ def test_stats_report() -> None:
     assert "3 calls, 1,200 prompt + 300 output" in text
     assert "est. $0.0012" in text
     assert "`default`, `contracts`" in text
-    assert "not enabled yet" in text
+    assert "**Semantic cache:** off" in text
 
 
 def test_stats_cache_hit_rate_and_empty_kb() -> None:
-    assert "3/4 hits (75%)" in stats_markdown(stats(cache_hits=3, cache_lookups=4))
-    assert "no lookups yet" in stats_markdown(stats(cache_hits=0, cache_lookups=0))
+    text = stats_markdown(stats(cache_hits=3, cache_lookups=4, cache_entries=7))
+    assert "3/4 hits (75%) since start, 7 answers stored" in text
+    assert "no lookups since start" in stats_markdown(stats(cache_hits=0, cache_lookups=0))
+    one = stats_markdown(stats(cache_hits=1, cache_lookups=2, cache_entries=1))
+    assert "1 answer stored" in one
     empty = stats_markdown(stats(documents=[], parents=0, chunks=0, vectors=0))
     assert "| Document |" not in empty
 
@@ -214,3 +218,40 @@ def test_generic_starters_for_other_documents() -> None:
     ]
     assert starter_prompts("compare", docs[:1]) == []
     assert starter_prompts("qa", []) == []
+
+
+def test_cache_step_and_note() -> None:
+    hit = AgentStep(
+        node="check_cache",
+        label="Semantic cache: hit (similarity 0.986)",
+        detail={
+            "hit": True,
+            "similarity": 0.9861,
+            "threshold": 0.96,
+            "cached_question": "How long does the Aurora X1 battery last?",
+            "cached_at": "2026-09-22T09:15:30+00:00",
+            "hits": 3,
+        },
+    )
+    text = step_markdown(hit)
+    assert step_title("check_cache") == "Check semantic cache"
+    assert "- Similarity 0.986 (needs 0.96)" in text
+    assert "*How long does the Aurora X1 battery last?*" in text
+    assert "- Cached 2026-09-22 09:15 UTC" in text
+    assert "- Reused 3 times" in text
+    assert "skipped" in text
+
+    blocked = AgentStep(
+        node="check_cache",
+        label="Semantic cache: miss",
+        detail={"hit": False, "similarity": 0.91, "threshold": 0.96, "candidates": 4,
+                "blocked_by_key_terms": True},
+    )  # fmt: skip
+    text = step_markdown(blocked)
+    assert "- Closest of 4 cached answers: 0.910 (needs 0.96)" in text
+    assert "different numbers or codes" in text
+    empty = AgentStep(node="check_cache", label="miss", detail={"hit": False, "candidates": 0})
+    assert "No cached answers" in step_markdown(empty)
+    assert cache_note(0.973) == (
+        "*⚡ Answered from the semantic cache (97% match): an earlier answer to the same question.*"
+    )

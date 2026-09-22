@@ -44,6 +44,7 @@ from nexusrag.ui.auth import check_credentials, ensure_auth_secret, password_con
 from nexusrag.ui.data_layer import build_data_layer
 from nexusrag.ui.panel import settings_widgets
 from nexusrag.ui.render import (
+    cache_note,
     citation_element_name,
     closest_matches_footer,
     match_element_name,
@@ -94,6 +95,14 @@ COMMANDS: list[CommandDict] = [
         "id": "stats",
         "icon": "database",
         "description": "Show knowledge base statistics",
+        "button": False,
+        "persistent": False,
+        "selected": False,
+    },
+    {
+        "id": "clear-cache",
+        "icon": "eraser",
+        "description": "Forget cached answers for this knowledge base",
         "button": False,
         "persistent": False,
         "selected": False,
@@ -367,6 +376,9 @@ async def on_message(message: cl.Message) -> None:
     if command == "stats" or text.lower() == "/stats":
         await show_stats(service)
         return
+    if command == "clear-cache" or text.lower() == "/clear-cache":
+        await clear_cache(service)
+        return
     if command == "url" or text.lower().startswith("/url"):
         await ingest_url(service, text.removeprefix("/url").strip())
         return
@@ -509,6 +521,8 @@ def compose_reply(answer: Answer, collection: str) -> tuple[str, list[Any]]:
             for c in answer.citations
         ]
         elements += [pdf for _, pdf in previews]
+    if answer.cached:
+        content += "\n\n" + cache_note(answer.cache_similarity)
     if answer.closest_matches:
         content += "\n\n" + closest_matches_footer(answer.closest_matches)
         elements += [
@@ -553,6 +567,7 @@ async def answer_question(service: RAGService, question: str) -> None:
             mode=PROFILE_MODES[current_profile()],
             self_correct=ui.self_correct,
             recent_doc_ids=cl.user_session.get("recent_uploads") or [],
+            use_cache=ui.cache,
             on_token=reply.stream_token,
             on_reset=reset_reply,
             on_step=steps.finish,
@@ -593,6 +608,15 @@ async def answer_question(service: RAGService, question: str) -> None:
             ]
             await reply.update()
             cl.user_session.set("follow_ups", reply.actions)
+
+
+async def clear_cache(service: RAGService) -> None:
+    collection = current_ui().collection
+    removed = await asyncio.to_thread(service.clear_cache, collection)
+    await cl.Message(
+        content=f"🧹 Cleared {removed} cached answer{'s' if removed != 1 else ''} "
+        f"for knowledge base **{collection}**."
+    ).send()
 
 
 async def show_stats(service: RAGService) -> None:

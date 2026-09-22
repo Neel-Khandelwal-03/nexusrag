@@ -6,7 +6,7 @@ from chainlit.input_widget import MultiSelect, Select, Slider
 
 from nexusrag.config import Settings
 from nexusrag.ui.panel import settings_widgets
-from nexusrag.ui.state import W_COLLECTION, W_DOCUMENTS, W_STYLE, W_TOP_K, UISettings
+from nexusrag.ui.state import W_CACHE, W_COLLECTION, W_DOCUMENTS, W_STYLE, W_TOP_K, UISettings
 
 
 def by_id(widgets: list) -> dict:  # type: ignore[type-arg]
@@ -30,6 +30,7 @@ def test_panel_reflects_current_settings(settings: Settings) -> None:
     assert isinstance(top_k, Slider)
     assert top_k.initial == 8
     assert widgets[W_STYLE].initial_value == "concise"
+    assert widgets[W_CACHE].initial is ui.cache
 
 
 def test_empty_knowledge_base_has_no_document_filter(settings: Settings) -> None:
