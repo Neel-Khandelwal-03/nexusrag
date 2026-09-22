@@ -20,7 +20,8 @@ Planned capabilities:
 - **Self-correcting agent.** An intent router, a relevance grader with query rewrites, and a groundedness check.
 - **Grounded answers** with inline `[n]` citations that open the exact source chunk, or the PDF at the cited page.
 - **A transparent chat UI** that shows every pipeline step with its timing, alongside uploads, knowledge bases, modes and persistent history.
-- **Semantic cache** for near-duplicate questions.
+- **Semantic cache** that reuses the answer to a near-duplicate question, cutting cost and
+  latency roughly tenfold, and never outlives the documents it cites.
 - **Evaluation suite** covering hit@k, MRR, context precision/recall, faithfulness, answer relevance, refusal rate, latency and cost.
 
 ## Local development
@@ -134,6 +135,25 @@ Each answer is grounded in the retrieved passages:
 - Click a `[n]` marker in the UI to open the source panel: file, page, section, the matched chunk and the full section the model read.
 - If the documents don't cover the question, the answer says *"I couldn't find this in your documents."* instead of falling back on general knowledge.
 
+### Semantic cache
+
+Many questions are near-duplicates of earlier ones ("What is the battery life of the Aurora X1?" after "How long does the Aurora X1 battery last?"). After routing, the agent embeds the router's standalone question and looks for a cached answer. On a hit it returns that answer, with its citations and source panels, and skips retrieval, grading and generation.
+
+| | Full pipeline | Cache hit |
+|---|---|---|
+| Measured on the sample corpus | ~15 s, 7–10 LLM calls, ~$0.003–0.006 | ~1.5–2 s, 2 calls (router + embedding), ~$0.0004 |
+
+An answer is reused only when **all** of these hold:
+
+- **Same knowledge base, unchanged.** Ingesting or deleting a document bumps the knowledge base version and deletes its cached answers in the same SQLite transaction. That includes ingestion from the CLI in another process.
+- **Same settings.** A fingerprint covers the route, the search scope, answer style, retrieval switches, self-correction and the models, so a concise answer is never served for a detailed request.
+- **Similar enough:** cosine similarity ≥ `CACHE_SIMILARITY_THRESHOLD` (0.96).
+- **Same numbers and codes.** Tokens containing a digit (Q2, 2026, X1, CH-400) must match exactly.
+
+Why the extra guard, and why 0.96 rather than 0.95? Calibrated on `gemini-embedding-2` query embeddings, paraphrases scored 0.952–0.995, while different questions scored up to 0.938 (battery life vs charge time). "Revenue in Q2 2026" vs "Q1 2026" scored 0.947, higher than the loosest paraphrase, and no threshold separates that pair from real paraphrases, so the key-term guard does. A missed hit only costs a normal answer; a false hit would give a wrong one, so the threshold leans towards precision.
+
+Only cited, grounded, non-refusal answers from the documents are stored. Each knowledge base keeps up to `CACHE_MAX_ENTRIES` answers, and the least recently used are evicted. The cache can be switched off per chat in the settings panel, or globally with `ENABLE_SEMANTIC_CACHE=false`. The evaluation always runs with it off.
+
 ### The chat UI
 
 `chainlit run app.py` starts the full chat experience at http://localhost:8000:
@@ -146,7 +166,7 @@ Each answer is grounded in the retrieved passages:
 - **Transparent pipeline.** Every agent node appears as a timed step under one *Pipeline* entry. The steps show the route and standalone question, the search queries, the hybrid candidates (dense, BM25 and RRF ranks), the reranked passages, the grader verdicts and any regeneration.
 - **Citations.** `[n]` opens the cited section in a side panel, with the matched excerpt highlighted. For PDFs, a *PDF page N* link opens the original file at the cited page (a copy is kept in `storage/files/`).
 - **Follow-ups.** After a grounded answer, 2-3 suggested questions appear as buttons (`ENABLE_FOLLOW_UPS`).
-- **`/stats`.** Shows documents, sections, chunks and vectors for the current knowledge base, plus model usage and estimated cost since start. Cache hit rate arrives with the semantic cache.
+- **`/stats`.** Shows documents, sections, chunks and vectors for the current knowledge base, plus the semantic cache's hit rate and model usage and estimated cost since start. `/clear-cache` forgets the knowledge base's cached answers.
 - **Limits.** Messages (`RATE_LIMIT_MESSAGES_PER_MINUTE`) and uploads (`RATE_LIMIT_UPLOADS_PER_HOUR`) are rate-limited per user. Logs never contain questions, answers, document text or secrets.
 - **No cold start.** The cross-encoder loads in the background when the app starts, so the first question doesn't wait for it.
 
