@@ -19,7 +19,19 @@ from pydantic import BaseModel, Field
 
 from nexusrag.store import Stores
 
-Kind = Literal["fact", "numeric", "table", "comparison", "unanswerable"]
+#: Generated kinds, plus hand-written hard ones: everyday wording that doesn't echo the
+#: document ("paraphrase"), product codes and system names ("identifier"), and bare
+#: search-box queries ("keyword").
+Kind = Literal[
+    "fact",
+    "numeric",
+    "table",
+    "comparison",
+    "paraphrase",
+    "identifier",
+    "keyword",
+    "unanswerable",
+]
 
 DEFAULT_PATH = Path(__file__).with_name("dataset.jsonl")
 
