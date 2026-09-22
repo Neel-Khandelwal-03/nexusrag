@@ -16,6 +16,7 @@ Responsibilities:
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterator, Sequence
@@ -111,6 +112,22 @@ class GeminiRateLimitError(GeminiError):
     default_message = "The AI service is rate-limiting requests. Please wait a moment and retry."
 
 
+class GeminiQuotaExhaustedError(GeminiRateLimitError):
+    """A daily quota is used up: retrying the same model can't help until it resets."""
+
+    default_message = (
+        "The daily quota for this AI model is used up. It resets at midnight Pacific time; "
+        "switch to another model in the settings or enable billing on the API key."
+    )
+
+    def __init__(self, detail: str, model: str | None = None) -> None:
+        message = self.default_message
+        if model:
+            message = message.replace("this AI model", f"`{model}`")
+        super().__init__(detail, message)
+        self.model = model
+
+
 class GeminiBlockedError(GeminiError):
     """The provider's safety filters blocked the prompt."""
 
@@ -123,18 +140,34 @@ class StructuredOutputError(GeminiError):
     default_message = "The AI service returned an unexpected response format."
 
 
+_QUOTA_ID_RE = re.compile(r'"quotaId":\s*"([^"]+)"')
+_QUOTA_MODEL_RE = re.compile(r"model: ([\w.\-]+)")
+
+
+def _error_details(exc: genai_errors.APIError) -> str:
+    return json.dumps(exc.details, default=str) if exc.details else ""
+
+
+def is_daily_quota(exc: BaseException) -> bool:
+    """True for a 429 caused by a per-day quota (free tier), which retries can't clear."""
+    if not isinstance(exc, genai_errors.APIError) or exc.code != 429:
+        return False
+    return any("PerDay" in quota for quota in _QUOTA_ID_RE.findall(_error_details(exc)))
+
+
 def is_retryable(exc: BaseException) -> bool:
     """True for transient failures worth retrying (rate limits, server errors, timeouts)."""
     if isinstance(exc, genai_errors.APIError):
-        return exc.code in RETRYABLE_STATUS_CODES
+        return exc.code in RETRYABLE_STATUS_CODES and not is_daily_quota(exc)
     return isinstance(exc, httpx.TransportError | TimeoutError)
 
 
 def should_fall_back(exc: BaseException) -> bool:
-    """True when switching models may help: still overloaded after retries, or model gone."""
+    """True when switching models may help: overloaded, out of daily quota, or model gone."""
     if isinstance(exc, genai_errors.APIError) and exc.code == 404:
         return True
-    return is_retryable(exc)
+    # Quotas are per model, so the fallback model may still have some left.
+    return is_daily_quota(exc) or is_retryable(exc)
 
 
 def translate_error(exc: BaseException, stage: str) -> GeminiError:
@@ -144,6 +177,9 @@ def translate_error(exc: BaseException, stage: str) -> GeminiError:
     if isinstance(exc, genai_errors.APIError):
         detail = f"{stage}: Gemini API error {exc.code} {exc.status}: {exc.message}"
         message = (exc.message or "").lower()
+        if is_daily_quota(exc):
+            model = _QUOTA_MODEL_RE.search(exc.message or "")
+            return GeminiQuotaExhaustedError(detail, model.group(1) if model else None)
         if exc.code == 429:
             return GeminiRateLimitError(detail)
         # An invalid key comes back as 400 INVALID_ARGUMENT, not 401.
