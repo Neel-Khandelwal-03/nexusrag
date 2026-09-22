@@ -5,8 +5,12 @@
     python -m eval.run_eval --resume eval/reports/<run>      # continue an interrupted run
 
 Every question goes through the real agent (router included) with the semantic cache
-off. Results are appended to ``<run>/results.jsonl`` as they arrive, so a run interrupted
-by rate limits can be resumed without paying for finished questions again: a per-minute
+off. Model fallback is disabled by default: when rate limiting pushed some answers onto a
+weaker backup model, configurations were no longer compared on equal terms. Calls retry
+patiently instead, and answers produced by a fallback in an earlier run are redone.
+
+Results are appended to ``<run>/results.jsonl`` as they arrive, so a run interrupted by
+rate limits can be resumed without paying for finished questions again: a per-minute
 limit waits and retries, while a used-up daily quota (the free tier allows 20 requests a
 day per Flash model) stops the run so it can be resumed after the reset. At the end the
 run folder gets ``results.csv`` (one row per question and configuration), ``summary.csv``
@@ -41,7 +45,7 @@ from eval.metrics import (
     write_summary_csv,
 )
 from nexusrag.config import Settings, get_settings
-from nexusrag.llm.gemini_client import GeminiClient, GeminiError
+from nexusrag.llm.gemini_client import GeminiClient, GeminiError, resilience_stats
 from nexusrag.log import configure_logging
 from nexusrag.retrieval.retriever import RetrievalOptions
 from nexusrag.service import RAGService
@@ -95,6 +99,7 @@ async def evaluate_item(
 ) -> QuestionResult:
     """Answer one question under one configuration and score it."""
     base = QuestionResult(config=name, item_id=item.id, kind=item.kind, answerable=item.answerable)
+    before = resilience_stats()
     started = time.perf_counter()
     try:
         result = await service.ask(
@@ -107,6 +112,7 @@ async def evaluate_item(
     except GeminiError as exc:
         return base.model_copy(update={"error": type(exc).__name__})
     latency_ms = (time.perf_counter() - started) * 1000
+    after = resilience_stats()
     answer, passages = result.answer, result.passages
     ranked = [p.parent.parent_id for p in passages]
     refused = is_refusal(answer)
@@ -119,6 +125,8 @@ async def evaluate_item(
             "latency_ms": latency_ms,
             "cost_usd": answer.usage.cost_usd,
             "llm_calls": answer.usage.calls,
+            "retries": after.retries - before.retries,
+            "fallbacks": after.fallbacks - before.fallbacks,
         }
     )
     gold = set(item.source_parent_ids)
@@ -165,6 +173,7 @@ async def run(
     k: int,
     delay_s: float = 0.0,
     rate_limit_wait_s: float = 60.0,
+    allow_fallback: bool = False,
 ) -> dict[str, list[QuestionResult]]:
     """Evaluate every item under every configuration, skipping finished ones.
 
@@ -182,7 +191,8 @@ async def run(
                 break
             config = CONFIGS[name]
             for n, item in enumerate(items, start=1):
-                if _finished(done.get((name, item.id)), judged=judge is not None):
+                previous = done.get((name, item.id))
+                if _finished(previous, judged=judge is not None, allow_fallback=allow_fallback):
                     continue
                 for attempt in range(3):
                     result = await evaluate_item(
@@ -221,11 +231,14 @@ async def run(
     return grouped
 
 
-def _finished(result: QuestionResult | None, *, judged: bool) -> bool:
-    """Done unless it failed, or (when judging) its judge scores are missing."""
+def _finished(result: QuestionResult | None, *, judged: bool, allow_fallback: bool) -> bool:
+    """Done unless it failed, its judge scores are missing, or (when fallback is off) it
+    was answered by a fallback model."""
     if result is None or result.error is not None:
         return False
-    return not (judged and result.judge_error is not None)
+    if judged and result.judge_error is not None:
+        return False
+    return allow_fallback or not result.fallbacks
 
 
 def _fmt(value: float | None) -> str:
@@ -256,7 +269,10 @@ def report_markdown(
         "",
         "Retrieval metrics are computed on the parent sections given to the answer model. "
         "Faithfulness skips refusals, answer relevance counts answerable questions only, and "
-        "cost covers the system's own model calls (not the judge's).",
+        "cost covers the system's own model calls (not the judge's). Latency excludes "
+        "questions slowed by rate limiting (retries or model fallbacks): "
+        + ", ".join(f"{labels.get(s.config, s.config)} {s.throttled}" for s in summaries)
+        + ".",
         "",
         "## Hit rate by question type",
         "",
@@ -326,6 +342,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-judge", action="store_true", help="skip LLM-judged metrics")
     parser.add_argument("--resume", type=Path, default=None, help="run folder to continue")
     parser.add_argument("--delay", type=float, default=0.0, help="seconds between questions")
+    parser.add_argument(
+        "--allow-fallback",
+        action="store_true",
+        help="let rate-limited calls switch to the fallback models (inconsistent comparisons)",
+    )
+    parser.add_argument("--max-attempts", type=int, default=8, help="attempts per model call")
+    parser.add_argument("--max-wait", type=float, default=45.0, help="max seconds between retries")
     args = parser.parse_args(argv)
 
     names = [n.strip() for n in args.configs.split(",") if n.strip()]
@@ -333,7 +356,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     if unknown:
         parser.error(f"unknown configurations {unknown}; choose from {sorted(CONFIGS)}")
 
-    settings = get_settings().model_copy(update={"log_level": "WARNING"})
+    overrides: dict[str, object] = {
+        "log_level": "WARNING",
+        "llm_max_attempts": args.max_attempts,
+        "llm_retry_max_wait_s": args.max_wait,
+    }
+    if not args.allow_fallback:
+        overrides |= {"generation_fallback_model": None, "fast_fallback_model": None}
+    settings = get_settings().model_copy(update=overrides)
     configure_logging(settings)
     items = load_dataset(args.dataset)
     if args.limit:
@@ -353,6 +383,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 settings.model_copy(
                     update={
                         "fast_model": judge_model,
+                        # None unless --allow-fallback (overrides above).
                         "fast_fallback_model": settings.generation_fallback_model,
                     }
                 )
@@ -374,6 +405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 collection=collection,
                 k=k,
                 delay_s=args.delay,
+                allow_fallback=args.allow_fallback,
             )
         )
     finally:

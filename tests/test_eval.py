@@ -101,6 +101,19 @@ def test_summarize_separates_answerable_and_unanswerable() -> None:
     assert "Hit@5" in table
 
 
+def test_latency_excludes_rate_limited_questions() -> None:
+    rows = [
+        result(item_id="q1", latency_ms=1000, retries=0, fallbacks=0),
+        result(item_id="q2", latency_ms=2000, retries=0, fallbacks=0),
+        result(item_id="q3", latency_ms=60000, retries=3, fallbacks=1),
+    ]
+    s = summarize("full", rows)
+    assert s.throttled == 1
+    assert s.clean_latency_p50_ms == 1500
+    assert s.latency_p95_ms == pytest.approx(54200)
+    assert "| 1.5 s / 1.9 s |" in markdown_table([s], {}, k=5)  # p95 of 1 s and 2 s
+
+
 # --------------------------------------------------------------------------- judges
 
 
@@ -289,6 +302,7 @@ async def test_run_scores_configs_and_resumes(
     assert dense["q001"].answer_relevance == 1.0
     assert dense["q002"].refused
     assert dense["q002"].faithfulness is None  # refusals aren't judged for claims
+    assert (dense["q001"].retries, dense["q001"].fallbacks) == (0, 0)
     assert all(r.error is None for rs in results.values() for r in rs)
 
     # Resuming does no new work: every (configuration, question) is already done.
@@ -369,6 +383,28 @@ async def test_per_minute_limits_wait_and_retry(
                         rate_limit_wait_s=0)  # fmt: skip
     assert results["dense"][0].error is None
     assert results["dense"][0].hit == 1.0
+
+
+async def test_answers_from_a_fallback_model_are_redone(
+    service: RAGService, fake_genai: FakeGenAI, tmp_path: Path
+) -> None:
+    await ingest(service, tmp_path)
+    items = dataset(service)[:1]
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    old = QuestionResult(config="dense", item_id="q001", kind="fact", answerable=True,
+                         fallbacks=1, answer="from the backup model")  # fmt: skip
+    with (run_dir / "results.jsonl").open("w", encoding="utf-8") as f:
+        print(old.model_dump_json(), file=f)
+    fake_genai.models.generate_fn = scripted
+    fake_genai.models.stream_queue.append([make_response("It takes 75 minutes [1].")])
+
+    kept = await run(service, None, items, ["dense"], run_dir, collection="default", k=3,
+                     allow_fallback=True)  # fmt: skip
+    assert kept["dense"][0].answer == "from the backup model"
+    redone = await run(service, None, items, ["dense"], run_dir, collection="default", k=3)
+    assert redone["dense"][0].answer == "It takes 75 minutes [1]."
+    assert redone["dense"][0].fallbacks == 0
 
 
 async def test_resolve_gold_refinds_sections_from_evidence(

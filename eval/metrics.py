@@ -220,6 +220,10 @@ class QuestionResult(BaseModel):
     latency_ms: float = 0.0
     cost_usd: float = 0.0
     llm_calls: int = 0
+    #: Retries and model fallbacks while answering (not judging). Non-zero means the
+    #: latency includes time spent waiting out rate limits. None: not recorded.
+    retries: int | None = None
+    fallbacks: int | None = None
     error: str | None = None
     judge_error: str | None = None
 
@@ -240,6 +244,11 @@ class ConfigSummary:
     latency_p50_ms: float | None
     latency_p95_ms: float | None
     cost_per_query_usd: float | None
+    #: Questions slowed by rate limiting (retries or model fallbacks).
+    throttled: int = 0
+    #: Latency over the questions that weren't throttled.
+    clean_latency_p50_ms: float | None = None
+    clean_latency_p95_ms: float | None = None
 
 
 def summarize(config: str, results: Sequence[QuestionResult]) -> ConfigSummary:
@@ -247,6 +256,8 @@ def summarize(config: str, results: Sequence[QuestionResult]) -> ConfigSummary:
     answerable = [r for r in ok if r.answerable]
     unanswerable = [r for r in ok if not r.answerable]
     latencies = [r.latency_ms for r in ok]
+    throttled = [r for r in ok if (r.retries or 0) + (r.fallbacks or 0) > 0]
+    clean = [r.latency_ms for r in ok if r.retries is not None and r not in throttled]
     return ConfigSummary(
         config=config,
         questions=len(results),
@@ -262,6 +273,9 @@ def summarize(config: str, results: Sequence[QuestionResult]) -> ConfigSummary:
         latency_p50_ms=percentile(latencies, 50),
         latency_p95_ms=percentile(latencies, 95),
         cost_per_query_usd=mean([r.cost_usd for r in ok]),
+        throttled=len(throttled),
+        clean_latency_p50_ms=percentile(clean, 50),
+        clean_latency_p95_ms=percentile(clean, 95),
     )
 
 
@@ -282,11 +296,11 @@ def markdown_table(summaries: Sequence[ConfigSummary], labels: dict[str, str], k
     )
     lines = [header, "|" + "---|" * 11]
     for s in summaries:
-        latency = (
-            "—"
-            if s.latency_p50_ms is None or s.latency_p95_ms is None
-            else f"{s.latency_p50_ms / 1000:.1f} s / {s.latency_p95_ms / 1000:.1f} s"
-        )
+        # Prefer latency without rate-limit waits when it was recorded.
+        p50, p95 = s.clean_latency_p50_ms, s.clean_latency_p95_ms
+        if p50 is None or p95 is None:
+            p50, p95 = s.latency_p50_ms, s.latency_p95_ms
+        latency = "—" if p50 is None or p95 is None else f"{p50 / 1000:.1f} s / {p95 / 1000:.1f} s"
         cost = "—" if s.cost_per_query_usd is None else f"${s.cost_per_query_usd:.4f}"
         lines.append(
             f"| {labels.get(s.config, s.config)} | {_pct(s.hit_at_k)} | {_num(s.mrr)} "
