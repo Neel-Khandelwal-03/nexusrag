@@ -496,3 +496,38 @@ async def test_daily_quota_falls_back_to_the_other_model(
     assert result.text == "ok"
     models = [c["model"] for c in fake_genai.models.calls_to("generate_content")]
     assert models == ["gemini-3.8-flash", "gemini-3.7-flash"]
+
+
+async def test_resilience_counters(with_fallback: GeminiClient, fake_genai: FakeGenAI) -> None:
+    from nexusrag.llm.gemini_client import resilience_stats
+
+    before = resilience_stats()
+    fake_genai.models.generate_queue.extend(
+        [api_error(503), api_error(503), api_error(503), make_response("ok")]
+    )
+    await with_fallback.generate("q", role="main")  # 2 retries, then a fallback
+    after = resilience_stats()
+    assert (after.retries - before.retries, after.fallbacks - before.fallbacks) == (2, 1)
+
+
+def test_daily_quota_is_recognised_in_streamed_errors() -> None:
+    """Streams report the error JSON as an escaped string inside details["message"]."""
+    import json
+
+    from google.genai import errors as genai_errors
+
+    from nexusrag.llm.gemini_client import is_daily_quota, translate_error
+
+    payload = {
+        "error": {
+            "code": 429,
+            "message": "Quota exceeded, limit: 500, model: gemini-3.5-flash-lite",
+            "details": [{"violations": [{"quotaId": DAILY, "quotaValue": "500"}]}],
+        }
+    }
+    exc = genai_errors.ClientError(429, {"message": json.dumps(payload, indent=2)})
+    assert is_daily_quota(exc)
+    assert not is_retryable(exc)
+    error = translate_error(exc, "answer")
+    assert isinstance(error, GeminiQuotaExhaustedError)
+    assert "`gemini-3.5-flash-lite`" in error.user_message

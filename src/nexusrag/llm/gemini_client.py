@@ -87,6 +87,23 @@ def query_embedding_memo() -> Iterator[None]:
 _FENCE_RE = re.compile(r"^\s*```(?:json)?\s*(.*?)\s*```\s*$", re.DOTALL)
 
 
+@dataclass
+class ResilienceStats:
+    """Retries and model fallbacks since the process started."""
+
+    retries: int = 0
+    fallbacks: int = 0
+
+
+_resilience = ResilienceStats()
+
+
+def resilience_stats() -> ResilienceStats:
+    """A snapshot of the counters: the evaluation compares them around each question to
+    tell pipeline latency apart from time spent waiting out rate limits."""
+    return ResilienceStats(retries=_resilience.retries, fallbacks=_resilience.fallbacks)
+
+
 # --------------------------------------------------------------------------- errors
 
 
@@ -145,7 +162,13 @@ _QUOTA_MODEL_RE = re.compile(r"model: ([\w.\-]+)")
 
 
 def _error_details(exc: genai_errors.APIError) -> str:
-    return json.dumps(exc.details, default=str) if exc.details else ""
+    """The error payload as searchable text.
+
+    Streamed responses wrap the error JSON as an escaped string inside
+    ``details["message"]``, so escaped quotes are undone before searching.
+    """
+    text = json.dumps(exc.details, default=str) if exc.details else ""
+    return f"{text} {exc.message or ''}".replace('\\"', '"')
 
 
 def is_daily_quota(exc: BaseException) -> bool:
@@ -178,7 +201,7 @@ def translate_error(exc: BaseException, stage: str) -> GeminiError:
         detail = f"{stage}: Gemini API error {exc.code} {exc.status}: {exc.message}"
         message = (exc.message or "").lower()
         if is_daily_quota(exc):
-            model = _QUOTA_MODEL_RE.search(exc.message or "")
+            model = _QUOTA_MODEL_RE.search(_error_details(exc))
             return GeminiQuotaExhaustedError(detail, model.group(1) if model else None)
         if exc.code == 429:
             return GeminiRateLimitError(detail)
@@ -335,6 +358,7 @@ class GeminiClient:
                 return result, model
             except Exception as exc:
                 if position + 1 < len(models) and should_fall_back(exc):
+                    _resilience.fallbacks += 1
                     log.warning(
                         "llm.model_fallback",
                         stage=stage,
@@ -664,6 +688,7 @@ class GeminiClient:
 
         def before_sleep(state: RetryCallState) -> None:
             exc = state.outcome.exception() if state.outcome else None
+            _resilience.retries += 1
             log.warning(
                 "llm.retry",
                 stage=stage,
