@@ -248,6 +248,7 @@ class IngestionPipeline:
             stores.bm25.delete_document(collection, doc_id)
             stores.registry.delete_document(collection, doc_id)
             stores.registry.bump_version(collection)
+            stores.cache.invalidate(collection)  # cached answers may cite this document
         self.settings.source_file_path(collection, doc_id).unlink(missing_ok=True)
         log.info("ingest.deleted", collection=collection, doc_id=doc_id)
         return True
@@ -396,6 +397,8 @@ class IngestionPipeline:
                 )
             )
             stores.registry.bump_version(collection)
+            # Same transaction: no answer can be served from before this document changed.
+            stores.cache.invalidate(collection)
 
     async def _failed(
         self,
