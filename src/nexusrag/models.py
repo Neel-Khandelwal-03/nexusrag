@@ -290,7 +290,10 @@ class Answer(BaseModel):
     refused: bool = False
     #: When refusing: the nearest passages found, so the user can see what *is* there.
     closest_matches: list[Citation] = Field(default_factory=list)
+    #: Served from the semantic cache instead of being generated.
     cached: bool = False
+    #: Similarity to the cached question, when ``cached``.
+    cache_similarity: float | None = None
     usage: UsageStats = Field(default_factory=UsageStats)
     timings: list[StageTiming] = Field(default_factory=list)
     steps: list[AgentStep] = Field(default_factory=list)

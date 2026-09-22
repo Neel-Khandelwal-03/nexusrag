@@ -1,4 +1,4 @@
-"""Persistence: ChromaDB for child vectors, SQLite for the registry, parents and BM25."""
+"""Persistence: ChromaDB for child vectors; SQLite for the registry, parents, BM25 and cache."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from nexusrag.config import Settings
 from nexusrag.store.bm25_index import BM25Index
 from nexusrag.store.parent_store import ParentStore
 from nexusrag.store.registry import Registry
+from nexusrag.store.semantic_cache import SemanticCache
 from nexusrag.store.sqlite_db import Database
 from nexusrag.store.vector_store import VectorStore
 
@@ -21,6 +22,7 @@ class Stores:
     bm25: BM25Index
     parents: ParentStore
     registry: Registry
+    cache: SemanticCache
 
     @classmethod
     def open(cls, settings: Settings) -> Stores:
@@ -35,10 +37,19 @@ class Stores:
             bm25=BM25Index(db),
             parents=ParentStore(db),
             registry=Registry(db),
+            cache=SemanticCache(db, max_entries=settings.cache_max_entries),
         )
 
     def close(self) -> None:
         self.db.close()
 
 
-__all__ = ["BM25Index", "Database", "ParentStore", "Registry", "Stores", "VectorStore"]
+__all__ = [
+    "BM25Index",
+    "Database",
+    "ParentStore",
+    "Registry",
+    "SemanticCache",
+    "Stores",
+    "VectorStore",
+]

@@ -1,9 +1,10 @@
-"""Shared SQLite database for the registry, parent sections and BM25 token lists.
+"""Shared SQLite database: registry, parent sections, BM25 token lists and the answer cache.
 
-Keeping these three in one file means a document can be replaced in a single
-transaction: old parents and BM25 rows are removed, new ones are inserted, and the
-registry row (the "this version is fully indexed" marker) is updated atomically.
-Only ChromaDB lives outside that transaction; see ``ingestion/pipeline.py``.
+Keeping these in one file means a document can be replaced in a single transaction:
+old parents and BM25 rows are removed, new ones are inserted, the registry row (the
+"this version is fully indexed" marker) is updated and the knowledge base's cached
+answers are dropped, atomically. Only ChromaDB lives outside that transaction; see
+``ingestion/pipeline.py``.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS collections (
@@ -66,6 +67,20 @@ CREATE TABLE IF NOT EXISTS bm25_chunks (
     PRIMARY KEY (collection, chunk_id)
 );
 CREATE INDEX IF NOT EXISTS bm25_by_doc ON bm25_chunks (collection, doc_id);
+
+CREATE TABLE IF NOT EXISTS semantic_cache (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    collection   TEXT NOT NULL,
+    kb_version   INTEGER NOT NULL,
+    fingerprint  TEXT NOT NULL,
+    question     TEXT NOT NULL,
+    embedding    BLOB NOT NULL,
+    answer_json  TEXT NOT NULL,
+    created_at   TEXT NOT NULL,
+    last_hit_at  TEXT,
+    hits         INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS cache_lookup ON semantic_cache (collection, kb_version, fingerprint);
 """
 
 

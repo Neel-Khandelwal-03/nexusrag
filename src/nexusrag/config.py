@@ -147,7 +147,11 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------ cache
     enable_semantic_cache: bool = True
-    cache_similarity_threshold: float = Field(default=0.95, gt=0.0, le=1.0)
+    # Calibrated on gemini-embedding-2 query embeddings: paraphrases scored 0.952-0.995,
+    # different questions up to 0.938 (plus 0.947 for "Q2" vs "Q1", which the key-term
+    # guard blocks). 0.96 favours precision: a missed hit only costs a normal answer.
+    cache_similarity_threshold: float = Field(default=0.96, gt=0.0, le=1.0)
+    cache_max_entries: int = Field(default=1000, ge=10)
 
     # ------------------------------------------------------------------ UI / security
     # Suggest follow-up questions (one fast-model call) after grounded answers.
