@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     # Weight of the first-stage (hybrid) ranking when fusing it with the reranker order
     # (RRF). 0 = pure reranker order. See retrieval/reranker.py for the evidence.
     rerank_fusion_weight: float = Field(default=1.0, ge=0.0, le=5.0)
+    # Passages that survive the threshold even if all score below it (0 allows an empty
+    # context). The evaluation found the threshold emptying the context and the agent
+    # refusing questions the documents answered.
+    rerank_min_keep: int = Field(default=3, ge=0, le=20)
     context_token_budget: int = Field(default=6000, ge=500)
     # Previous chat messages (user + assistant) used to condense follow-up questions.
     history_turns: int = Field(default=6, ge=0, le=50)

@@ -13,6 +13,7 @@ import pytest
 from nexusrag.config import Settings
 from nexusrag.ingestion.pipeline import IngestionPipeline
 from nexusrag.llm.gemini_client import GeminiClient
+from nexusrag.llm.prompts import REFUSAL_MESSAGE
 from nexusrag.models import ChatTurn, RetrievedChunk, SearchFilters
 from nexusrag.retrieval.hybrid import HybridSearcher, SearchQuery
 from nexusrag.retrieval.reranker import (
@@ -183,11 +184,35 @@ async def test_cross_encoder_reorders_and_applies_threshold() -> None:
     model = FakeCrossEncoder(["charger"])
     reranker = CrossEncoderReranker("fake-model", loader=lambda name, max_len: model)
     pool = candidates_from(["propellers", "stipend", "the CH-400 charger", "firmware"])
-    kept = await rerank(reranker, "charger?", pool, top_k=3, threshold=0.05, max_candidates=10)
+    kept = await rerank(
+        reranker, "charger?", pool, top_k=3, threshold=0.05, max_candidates=10, min_keep=0
+    )
     assert texts(kept) == ["the CH-400 charger"]
     assert kept[0].scores.rerank_score == pytest.approx(0.95)
     assert kept[0].scores.rrf_score == pool[2].scores.rrf_score  # earlier scores preserved
     assert pool[2].scores.rerank_score is None  # inputs not mutated
+
+
+async def test_threshold_keeps_a_floor_of_passages() -> None:
+    """A score threshold should trim a weak tail, not hand the model an empty context."""
+    model = FakeCrossEncoder(["charger"])
+    reranker = CrossEncoderReranker("fake-model", loader=lambda name, max_len: model)
+    pool = candidates_from(["propellers", "stipend", "firmware", "warranty"])  # none match
+
+    empty = await rerank(reranker, "charger?", pool, top_k=3, threshold=0.5, max_candidates=10,
+                         min_keep=0)  # fmt: skip
+    assert empty == []
+
+    kept = await rerank(reranker, "charger?", pool, top_k=3, threshold=0.5, max_candidates=10,
+                        min_keep=2)  # fmt: skip
+    assert texts(kept) == ["propellers", "stipend"]  # the best two in fused order
+    assert all(rc.scores.rerank_score == pytest.approx(0.01) for rc in kept)
+
+    # Passages above the threshold are unaffected by the floor.
+    mixed = candidates_from(["the CH-400 charger", "propellers"])
+    above = await rerank(reranker, "charger?", mixed, top_k=3, threshold=0.5, max_candidates=10,
+                         min_keep=1)  # fmt: skip
+    assert texts(above) == ["the CH-400 charger"]
 
 
 async def test_rerankers_read_linearised_tables() -> None:
@@ -365,8 +390,11 @@ async def test_full_pipeline_with_all_stages(
         "parent_expansion",
     ]
     assert len(retrieval.candidates) > len(retrieval.chunks)
-    assert all("charg" in rc.chunk.text.lower() for rc in retrieval.chunks)
-    assert all(rc.scores.rerank_score == pytest.approx(0.95) for rc in retrieval.chunks)
+    best = retrieval.chunks[0]
+    assert "charg" in best.chunk.text.lower()
+    assert best.scores.rerank_score == pytest.approx(0.95)
+    # Weaker passages below the threshold stay (the floor); the answer model judges them.
+    assert len(retrieval.chunks) == full_service.settings.rerank_min_keep
     # The answer model receives the standalone question, not the ambiguous follow-up.
     stream_call = fake_genai.models.calls_to("generate_content_stream")[0]
     assert "Question: How long does charging the battery take?" in stream_call["contents"]
@@ -374,14 +402,39 @@ async def test_full_pipeline_with_all_stages(
 
 
 async def test_threshold_can_empty_the_context_and_trigger_refusal(
-    full_service: RAGService, fake_genai: FakeGenAI
+    make_settings: Callable[..., Settings], fake_genai: FakeGenAI, tmp_path: Path
 ) -> None:
+    """With the floor switched off (RERANK_MIN_KEEP=0), nothing reaches the answer model."""
+    settings = make_settings(
+        storage_dir=tmp_path / "storage", top_k=3, dense_k=10, bm25_k=10, rerank_min_keep=0
+    )
+    fake_genai.models.embed_fn = keyword_embedder()
+    gemini = GeminiClient(settings, client=fake_genai)
+    stores = Stores.open(settings)
+    await index(settings, gemini, stores, tmp_path)
+    reranker = CrossEncoderReranker(
+        "fake-model", loader=lambda name, max_len: FakeCrossEncoder(["charg"])
+    )
+    service = RAGService(settings, gemini, stores, reranker=reranker)
     options = RetrievalOptions(top_k=3, multi_query=False, rerank=True)
-    result = await full_service.ask("What is the CEO's favourite colour?", options=options)
+    result = await service.ask("What is the CEO's favourite colour?", options=options)
     assert result.retrieval.candidates  # something was found...
     assert result.retrieval.chunks == []  # ...but nothing passed the relevance threshold
     assert result.answer.refused
     assert fake_genai.models.calls_to("generate_content_stream") == []
+    service.close()
+
+
+async def test_floor_lets_the_answer_model_judge_weak_passages(
+    full_service: RAGService, fake_genai: FakeGenAI
+) -> None:
+    """By default the floor keeps passages, so the refusal is the answer model's call."""
+    fake_genai.models.stream_queue.append([make_response(REFUSAL_MESSAGE)])
+    options = RetrievalOptions(top_k=3, multi_query=False, rerank=True)
+    result = await full_service.ask("What is the CEO's favourite colour?", options=options)
+    assert len(result.retrieval.chunks) == full_service.settings.rerank_min_keep
+    assert result.answer.refused
+    assert fake_genai.models.calls_to("generate_content_stream")  # the model saw them
 
 
 async def test_rerank_failure_keeps_fused_order(
@@ -416,7 +469,10 @@ async def test_rerank_threshold_can_be_relaxed_per_request(
     reranker = CrossEncoderReranker(
         "fake-model", loader=lambda name, max_len: FakeCrossEncoder(["charg"])
     )
-    retriever = Retriever(settings, gemini, stores, reranker=reranker)
+    # The floor is off here: this is about the threshold itself.
+    retriever = Retriever(
+        settings.model_copy(update={"rerank_min_keep": 0}), gemini, stores, reranker=reranker
+    )
     options = RetrievalOptions(top_k=3, multi_query=False, rerank=True)
 
     strict = await retriever.retrieve("battery charging", collection="default", options=options)

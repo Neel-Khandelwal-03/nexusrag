@@ -212,6 +212,7 @@ async def rerank(
     max_candidates: int,
     fusion_weight: float = 1.0,
     rrf_k: int = 60,
+    min_keep: int = 3,
 ) -> list[RetrievedChunk]:
     """Rescore the top ``max_candidates``; keep the best ``top_k`` scoring >= ``threshold``.
 
@@ -223,9 +224,12 @@ async def rerank(
     kept it (3rd) and raised the right passage's rank on other questions too, so a single
     noisy reranker score can no longer overrule agreement between both retrievers.
 
-    The threshold still applies to the reranker's own score, so irrelevant passages are
-    dropped. The result may be empty, which lets the pipeline say "not in your documents"
-    instead of answering from noise. Returns copies with ``scores.rerank_score`` set.
+    The threshold still applies to the reranker's own score, so an irrelevant tail is
+    dropped, but at least ``min_keep`` passages survive it: in the evaluation the
+    threshold sometimes emptied the context, and the agent then refused questions the
+    documents answered, without the answer model ever seeing the passage. Deciding that
+    the documents don't cover a question is the answer model's and the graders' job.
+    Returns copies with ``scores.rerank_score`` set.
     """
     from nexusrag.retrieval.hybrid import reciprocal_rank_fusion  # local: avoids an import cycle
 
@@ -252,7 +256,7 @@ async def rerank(
         ]
     else:
         order = by_reranker
-    kept = [
-        rescored[cid] for cid in order if (rescored[cid].scores.rerank_score or 0.0) >= threshold
-    ]
-    return kept[:top_k]
+    keep = {cid for cid in order if (rescored[cid].scores.rerank_score or 0.0) >= threshold}
+    if len(keep) < min_keep:
+        keep |= set(order[:min_keep])
+    return [rescored[cid] for cid in order if cid in keep][:top_k]
