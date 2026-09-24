@@ -69,7 +69,7 @@ packages = ["src/nexusrag"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-src = ["src", "tests"]
+src = ["src", "tests", "."]
 
 [tool.ruff.lint]
 select = [
@@ -93,7 +93,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 # --------------------------------------------------------------------------- mypy
 # Deliberately lenient: typed public surfaces, no strict mode.
 [tool.mypy]
-files = ["src", "app.py"]
+files = ["src", "app.py", "eval"]
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true

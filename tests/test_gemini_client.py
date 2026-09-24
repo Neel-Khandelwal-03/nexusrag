@@ -14,6 +14,7 @@ from nexusrag.llm.gemini_client import (
     GeminiClient,
     GeminiConfigError,
     GeminiError,
+    GeminiQuotaExhaustedError,
     GeminiRateLimitError,
     StructuredOutputError,
     format_embedding_input,
@@ -458,3 +459,75 @@ async def test_query_embedding_memo_reuses_vectors(
     assert [len(c["contents"]) for c in calls] == [1, 1]  # only "charge time" was new
     await gemini.embed_query("battery life")  # outside the block: embedded again
     assert len(fake_genai.models.calls_to("embed_content")) == 3
+
+
+DAILY = "GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+PER_MINUTE = "GenerateRequestsPerMinutePerProjectPerModel-FreeTier"
+QUOTA_MESSAGE = "Quota exceeded for metric: free_tier_requests, limit: 20, model: gemini-3.8-flash"
+
+
+async def test_daily_quota_is_not_retried(gemini: GeminiClient, fake_genai: FakeGenAI) -> None:
+    fake_genai.models.generate_queue.append(api_error(429, QUOTA_MESSAGE, quota_id=DAILY))
+    with pytest.raises(GeminiQuotaExhaustedError) as info:
+        await gemini.generate("q", role="main")
+    assert len(fake_genai.models.calls_to("generate_content")) == 1  # retrying can't help
+    assert "`gemini-3.8-flash`" in info.value.user_message
+    assert "midnight Pacific" in info.value.user_message
+    assert isinstance(info.value, GeminiRateLimitError)
+    assert not is_retryable(api_error(429, quota_id=DAILY))
+
+
+async def test_per_minute_quota_is_still_retried(
+    gemini: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.extend(
+        [api_error(429, "slow down", quota_id=PER_MINUTE), make_response("ok")]
+    )
+    assert (await gemini.generate("q")).text == "ok"
+
+
+async def test_daily_quota_falls_back_to_the_other_model(
+    with_fallback: GeminiClient, fake_genai: FakeGenAI
+) -> None:
+    fake_genai.models.generate_queue.extend(
+        [api_error(429, QUOTA_MESSAGE, quota_id=DAILY), make_response("ok")]
+    )
+    result = await with_fallback.generate("q", role="main")
+    assert result.text == "ok"
+    models = [c["model"] for c in fake_genai.models.calls_to("generate_content")]
+    assert models == ["gemini-3.8-flash", "gemini-3.7-flash"]
+
+
+async def test_resilience_counters(with_fallback: GeminiClient, fake_genai: FakeGenAI) -> None:
+    from nexusrag.llm.gemini_client import resilience_stats
+
+    before = resilience_stats()
+    fake_genai.models.generate_queue.extend(
+        [api_error(503), api_error(503), api_error(503), make_response("ok")]
+    )
+    await with_fallback.generate("q", role="main")  # 2 retries, then a fallback
+    after = resilience_stats()
+    assert (after.retries - before.retries, after.fallbacks - before.fallbacks) == (2, 1)
+
+
+def test_daily_quota_is_recognised_in_streamed_errors() -> None:
+    """Streams report the error JSON as an escaped string inside details["message"]."""
+    import json
+
+    from google.genai import errors as genai_errors
+
+    from nexusrag.llm.gemini_client import is_daily_quota, translate_error
+
+    payload = {
+        "error": {
+            "code": 429,
+            "message": "Quota exceeded, limit: 500, model: gemini-3.5-flash-lite",
+            "details": [{"violations": [{"quotaId": DAILY, "quotaValue": "500"}]}],
+        }
+    }
+    exc = genai_errors.ClientError(429, {"message": json.dumps(payload, indent=2)})
+    assert is_daily_quota(exc)
+    assert not is_retryable(exc)
+    error = translate_error(exc, "answer")
+    assert isinstance(error, GeminiQuotaExhaustedError)
+    assert "`gemini-3.5-flash-lite`" in error.user_message

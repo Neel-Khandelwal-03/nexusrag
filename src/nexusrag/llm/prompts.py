@@ -297,3 +297,103 @@ answers it). Judge only relevance, not writing quality. Return a score for every
 Query: {query}
 
 {passages}"""
+
+# --------------------------------------------------------------------------- evaluation
+
+EVAL_QUESTION_PROMPT = """\
+You are writing a test set for a question-answering system over company documents.
+Read the section below and write {n} question(s) a real employee or customer might ask that
+this section answers.
+
+Rules:
+- Each question must be answerable from this section alone, with a short, specific answer.
+- Prefer concrete facts: numbers, limits, durations, prices, conditions, named procedures.
+  If the section contains a table, ask about a value in it.
+- Phrase questions naturally, the way a user would type them. Do not copy the section's
+  wording or headings; paraphrase. Mention the product or policy name so the question makes
+  sense on its own.
+- "answer": the correct answer in one or two sentences.
+- "evidence": one or two short quotes copied exactly, character for character, from the
+  section that together prove the answer (each under 200 characters).
+- "kind": "numeric" (asks for a number or amount), "table" (the answer comes from a table),
+  or "fact" (anything else).
+
+Document: {title} ({filename})
+Section: {section}
+
+<section>
+{text}
+</section>"""
+
+EVAL_CROSS_QUESTION_PROMPT = """\
+You are writing a test set for a question-answering system over company documents. Write
+one question that can only be answered by combining BOTH sections below (for example,
+comparing a value that appears in each). Phrase it naturally and name both subjects.
+
+- "answer": the correct answer in one or two sentences, with the values from each section.
+- "evidence": exact quotes, character for character, including at least one from each
+  section (each under 200 characters).
+- "kind": "comparison".
+
+<section id="A" document="{title_a}" heading="{section_a}">
+{text_a}
+</section>
+
+<section id="B" document="{title_b}" heading="{section_b}">
+{text_b}
+</section>"""
+
+EVAL_UNANSWERABLE_PROMPT = """\
+You are writing a test set for a question-answering system over company documents. Write
+{n} questions that sound like they belong to this knowledge base but that its documents do
+NOT answer. Use the document list and section headings to stay on topic: ask about details
+that are plausibly missing (a person's salary, a product that isn't described, a
+specification the headings don't cover, a date or figure outside the documented period).
+
+Rules:
+- Each question must be specific and realistic, not absurd or unrelated.
+- Do not ask about anything the headings suggest is covered.
+- "answer": leave empty. "evidence": empty list. "kind": "unanswerable".
+
+Documents and their section headings:
+{outline}"""
+
+EVAL_CONTEXT_JUDGE_PROMPT = """\
+You are evaluating the retrieval step of a question-answering system.
+
+Question: {question}
+Reference answer: {reference}
+
+<passages>
+{passages}
+</passages>
+
+Return:
+- "passages": for every passage id, "relevant": true if the passage contains information
+  needed to produce the reference answer, otherwise false.
+- "statements": split the reference answer into its atomic factual statements. For each,
+  "supported": true if the passages, taken together, state it (rewording is fine; numbers
+  and conditions must match)."""
+
+EVAL_ANSWER_JUDGE_PROMPT = """\
+You are evaluating an answer produced by a question-answering system from retrieved
+passages.
+
+Question: {question}
+
+<passages>
+{passages}
+</passages>
+
+<answer>
+{answer}
+</answer>
+
+Return:
+- "claims": every factual claim the answer makes about the subject matter (ignore citation
+  markers, pleasantries and statements that something could not be found). For each,
+  "supported": true only if the passages state it or it follows directly; numbers, names
+  and conditions must match.
+- "relevance": 1 to 5, how directly and completely the answer addresses the question,
+  regardless of correctness (5: fully answers exactly what was asked; 3: partly, or buried
+  in unrelated content; 1: does not address it, or declines to answer)."""

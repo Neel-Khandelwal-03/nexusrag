@@ -14,10 +14,24 @@ from google.genai import errors as genai_errors
 from google.genai import types
 
 
-def api_error(code: int, message: str = "boom", status: str = "ERROR") -> genai_errors.APIError:
-    """Build the SDK exception the real client raises for an HTTP status code."""
+def api_error(
+    code: int, message: str = "boom", status: str = "ERROR", *, quota_id: str | None = None
+) -> genai_errors.APIError:
+    """Build the SDK exception the real client raises for an HTTP status code.
+
+    ``quota_id`` adds the QuotaFailure detail Google sends with a 429, e.g.
+    "GenerateRequestsPerDayPerProjectPerModel-FreeTier".
+    """
     cls = genai_errors.ClientError if code < 500 else genai_errors.ServerError
-    return cls(code, {"error": {"code": code, "message": message, "status": status}})
+    error: dict[str, Any] = {"code": code, "message": message, "status": status}
+    if quota_id:
+        error["details"] = [
+            {
+                "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+                "violations": [{"quotaId": quota_id, "quotaValue": "20"}],
+            }
+        ]
+    return cls(code, {"error": error})
 
 
 def make_response(
