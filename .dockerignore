@@ -1,0 +1,31 @@
+# Keep the build context small and never ship local data or secrets.
+.git/
+.github/
+.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Secrets and local state
+.env
+.env.*
+!.env.example
+storage/
+.files/
+*.db
+*.db-*
+
+# Not needed at runtime
+tests/
+eval/
+docs/
+scripts/build_sample_docs.py
+scripts/smoke_gemini.py
+CHANGELOG.md
+LICENSE
+Dockerfile
+docker-compose.yml
+.dockerignore

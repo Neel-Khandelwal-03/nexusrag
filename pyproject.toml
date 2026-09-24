@@ -93,7 +93,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]
 # --------------------------------------------------------------------------- mypy
 # Deliberately lenient: typed public surfaces, no strict mode.
 [tool.mypy]
-files = ["src", "app.py", "eval"]
+files = ["src", "app.py", "eval", "scripts"]
 ignore_missing_imports = true
 check_untyped_defs = true
 warn_unused_ignores = true

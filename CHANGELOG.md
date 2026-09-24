@@ -78,6 +78,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/stats` command (`RAGService.stats()`): documents, sections, chunks, vectors, model usage and cost.
   - Per-user rate limits for messages and uploads, and a friendly message instead of raw errors if a UI callback fails.
   - The cross-encoder is loaded in the background at startup (`RAGService.warm_up()`), and its load time is logged.
+- Production packaging (phase 9):
+  - Multi-stage `Dockerfile`: slim runtime, non-root user (uid 1000), dependencies in a virtualenv built separately from the source, `HEALTHCHECK`, and `/data` for the index, chat history and model cache. It ships with the Gemini reranker; `--build-arg INSTALL_RERANK=true` adds the local cross-encoder (torch is large and needs ~8 s per query on 2 vCPUs, and the evaluation found it didn't improve answers here).
+  - `docker-compose.yml` with a named volume, environment defaults and the health check; `.dockerignore` keeps secrets, local state, tests and reports out of the build context.
+  - `docker-entrypoint.sh` prepares the writable paths, indexes `data/` on first start when the knowledge base is empty (`BOOTSTRAP_INDEX`), and passes `PORT` to Chainlit.
+  - `scripts/bootstrap_index.py` (skips when documents exist, `--force`, `--require`) and `scripts/healthcheck.py` (standard library only), both unit-tested.
+  - CI gains a `docker` job that builds the image, starts the container, waits for it to report healthy and checks it runs as a non-root user. `scripts/` is now type-checked too.
+  - README: architecture diagram, a naive-RAG comparison table, Docker instructions, a deployment guide (Hugging Face Spaces and Cloud Run), design decisions and trade-offs, known limitations, and screenshot placeholders.
 - Evaluation suite (phase 8):
   - `eval/dataset.jsonl`: 61 reviewed questions over the sample corpus (53 answerable, 8 not), each with a reference answer, exact evidence quotes and the source sections and chunks. `eval/generate_dataset.py` drafts them from sampled sections, checks every quote against the text, and keeps unanswerable candidates only when retrieval and the relevance grader agree the documents can't answer them.
   - Generated questions echo their section's wording and every configuration scored ~100% on them, so 19 harder ones were written by hand: everyday paraphrases, product codes and bare keyword queries.
