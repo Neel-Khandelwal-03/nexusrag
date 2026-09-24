@@ -378,29 +378,58 @@ graders:
 
 ## Deployment
 
-Both environments run the same image; only secrets and the Space differ.
+Both environments run the same Docker image from this repository; only the Space and its
+secrets differ.
 
-| Environment | Branch | Space |
-|---|---|---|
-| Staging | `staging` | `nexusrag-staging` |
-| Production | `main` | `nexusrag` |
+| Environment | Branch | Space | Deployed by |
+|---|---|---|---|
+| Staging | `staging` | `nexusrag-staging` | `.github/workflows/deploy-staging.yml` |
+| Production | `main` | `nexusrag` | `.github/workflows/deploy-prod.yml` |
 
-**Hugging Face Spaces (primary).** Create a Docker Space, then in *Settings → Variables and
-secrets* add `GEMINI_API_KEY`, `AUTH_PASSWORD` and `CHAINLIT_AUTH_SECRET`
-(`chainlit create-secret`) as secrets, and `ENVIRONMENT`, `PORT=7860` and
-`STORAGE_DIR=/data/storage` as variables. Attach persistent storage so the index and chat
-history survive restarts. GitHub Actions pushes the repository to the Space on every merge
-into `staging` (staging) or `main` (production), and the Space rebuilds the image itself.
+Each workflow runs the full CI first, then uploads the repository to the Space, waits for
+it to report *running*, and smoke-tests the live URL. `main` only moves through a reviewed
+PR from `staging`, so a production deploy is always a reviewed release.
+
+**One-time setup.** Create a Hugging Face [write token](https://huggingface.co/settings/tokens), then:
+
+```bash
+gh secret set HF_TOKEN                          # paste the token
+gh variable set HF_USERNAME --body "<your-hf-username>"
+# optional, if you want different Space names:
+gh variable set HF_SPACE_STAGING --body "nexusrag-staging"
+gh variable set HF_SPACE_PRODUCTION --body "nexusrag"
+```
+
+The first deploy creates the Space itself (Docker SDK) and sets its non-secret variables
+(`ENVIRONMENT`, `PORT`, `BOOTSTRAP_INDEX`, `STORAGE_DIR`). Add the secrets once per Space,
+in *Settings → Variables and secrets* on the Space:
+
+| Secret | Value |
+|---|---|
+| `GEMINI_API_KEY` | Your Gemini API key |
+| `AUTH_PASSWORD` | The chat password (logins are refused until this is set) |
+| `CHAINLIT_AUTH_SECRET` | `chainlit create-secret` |
+
+Deploy manually at any time with `gh workflow run "Deploy staging"`, or locally:
+
+```bash
+HF_TOKEN=... python scripts/deploy_space.py --space <user>/nexusrag-staging \
+  --environment staging --wait
+```
+
+The script uploads code only: it never sends secrets, and it excludes local state, tests
+and evaluation reports.
+
+**Free-tier notes.** Spaces without paid persistent storage reset on restart, so the
+container re-indexes `data/` on each cold start (about a cent's worth of embeddings). The
+free Gemini tier allows only 20 requests a day per Flash model, which a public demo
+exhausts quickly: enable billing, or point `GENERATION_MODEL` at a flash-lite model.
 
 **Google Cloud Run (alternative).** Build and push the image to Artifact Registry, then
 deploy with `--port 8000`, at least 2 GiB of memory and the same environment variables,
-with secrets from Secret Manager. Cloud Run's filesystem is ephemeral, so mount a
-persistent volume (Cloud Storage FUSE or Filestore) at `/data`, or accept that the index
-is rebuilt from `data/` on each cold start.
-
-In both cases the free Gemini tier allows only 20 requests a day per Flash model, which a
-public demo exhausts quickly; enable billing or point `GENERATION_MODEL` at a
-flash-lite model.
+with secrets from Secret Manager. Cloud Run's filesystem is ephemeral too, so either mount
+a persistent volume (Cloud Storage FUSE or Filestore) at `/data` or let the index rebuild
+on each cold start.
 
 ## Design decisions and trade-offs
 

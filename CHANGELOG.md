@@ -78,6 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `/stats` command (`RAGService.stats()`): documents, sections, chunks, vectors, model usage and cost.
   - Per-user rate limits for messages and uploads, and a friendly message instead of raw errors if a UI callback fails.
   - The cross-encoder is loaded in the background at startup (`RAGService.warm_up()`), and its load time is logged.
+- Deployment (phase 10):
+  - `scripts/deploy_space.py`: creates the Hugging Face Space if it doesn't exist (Docker SDK), sets its non-secret variables, uploads the repository (excluding local state, secrets, tests and evaluation reports) and waits for it to report running. Secrets never pass through it.
+  - `deploy-staging.yml` and `deploy-prod.yml`: run CI, deploy to the matching Space and smoke-test the live URL. Staging deploys on every merge into `staging`; production on `main`, which only moves through a reviewed PR.
+  - `scripts/healthcheck.py` gained `--expect`, `--retries` and `--interval`, so the same script serves the container's HEALTHCHECK and the post-deploy smoke test.
 - Production packaging (phase 9):
   - Multi-stage `Dockerfile`: slim runtime, non-root user (uid 1000), dependencies in a virtualenv built separately from the source, `HEALTHCHECK`, and `/data` for the index, chat history and model cache. It ships with the Gemini reranker; `--build-arg INSTALL_RERANK=true` adds the local cross-encoder (torch is large and needs ~8 s per query on 2 vCPUs, and the evaluation found it didn't improve answers here).
   - `docker-compose.yml` with a named volume, environment defaults and the health check; `.dockerignore` keeps secrets, local state, tests and reports out of the build context.

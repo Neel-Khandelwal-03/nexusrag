@@ -1,0 +1,61 @@
+name: Deploy staging
+
+# Every merge into staging redeploys the staging Space, but only after CI passes.
+on:
+  push:
+    branches: [staging]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: deploy
+    needs: ci
+    # Skips (rather than fails) until the Hugging Face variables are configured.
+    if: vars.HF_USERNAME != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      # Set these once: `gh secret set HF_TOKEN` and `gh variable set HF_USERNAME`.
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      SPACE: ${{ vars.HF_USERNAME }}/${{ vars.HF_SPACE_STAGING || 'nexusrag-staging' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install the Hub client
+        run: pip install "huggingface_hub>=0.26"
+
+      - name: Deploy to the Space
+        id: deploy
+        run: |
+          python scripts/deploy_space.py \
+            --space "$SPACE" \
+            --environment staging \
+            --branch staging \
+            --repo "$GITHUB_REPOSITORY" \
+            --message "Deploy ${GITHUB_SHA::7} from staging" \
+            --wait
+          echo "url=https://huggingface.co/spaces/$SPACE" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test the deployment
+        run: |
+          host=$(echo "$SPACE" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+          python scripts/healthcheck.py \
+            --url "https://${host}.hf.space/" \
+            --expect NexusRAG --timeout 30 --retries 20 --interval 15

@@ -145,3 +145,114 @@ def test_healthcheck_exit_codes(server: HTTPServer, monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("PORT", str(server.server_port))
     assert healthcheck.main([]) == 0
     assert healthcheck.main(["--url", "http://127.0.0.1:1/", "--timeout", "1"]) == 1
+
+
+# --------------------------------------------------------------------------- deploy
+
+deploy_space = load("deploy_space")
+
+
+class FakeApi:
+    """Records what the deploy script asks the Hub to do."""
+
+    def __init__(self, stages: list[str] | None = None) -> None:
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.stages = stages or ["RUNNING"]
+
+    def create_repo(self, **kwargs: Any) -> None:
+        self.calls.append(("create_repo", kwargs))
+
+    def add_space_variable(self, **kwargs: Any) -> None:
+        self.calls.append(("variable", kwargs))
+
+    def upload_file(self, **kwargs: Any) -> None:
+        self.calls.append(("upload_file", kwargs))
+
+    def upload_folder(self, **kwargs: Any) -> None:
+        self.calls.append(("upload_folder", kwargs))
+
+    def get_space_runtime(self, **kwargs: Any) -> Any:
+        stage = self.stages.pop(0) if len(self.stages) > 1 else self.stages[0]
+        return type("Runtime", (), {"stage": stage})()
+
+
+def test_deploy_creates_the_space_and_uploads_code() -> None:
+    api = FakeApi()
+    url = deploy_space.deploy(
+        api,
+        "me/nexusrag-staging",
+        environment="staging",
+        branch="staging",
+        repo="me/nexusrag",
+        port=8000,
+        commit_message="Deploy abc1234",
+    )
+    assert url == "https://huggingface.co/spaces/me/nexusrag-staging"
+    kinds = [kind for kind, _ in api.calls]
+    assert kinds[0] == "create_repo"
+    created = api.calls[0][1]
+    assert created["space_sdk"] == "docker"
+    assert created["exist_ok"] is True
+
+    variables = {c["key"]: c["value"] for kind, c in api.calls if kind == "variable"}
+    assert variables["ENVIRONMENT"] == "staging"
+    assert variables["BOOTSTRAP_INDEX"] == "true"
+    assert variables["PORT"] == "8000"
+    # Secrets are never sent from here.
+    assert not any("SECRET" in key or "KEY" in key for key in variables)
+
+    readme = next(c for kind, c in api.calls if kind == "upload_file")
+    assert readme["path_in_repo"] == "README.md"
+    body = readme["path_or_fileobj"].decode("utf-8")
+    assert body.startswith("---\n")
+    assert "sdk: docker" in body
+    assert "app_port: 8000" in body
+    assert "github.com/me/nexusrag" in body
+
+    folder = next(c for kind, c in api.calls if kind == "upload_folder")
+    for pattern in (".env", "storage/*", "tests/*", "eval/*", "README.md"):
+        assert pattern in folder["ignore_patterns"]
+    assert folder["commit_message"] == "Deploy abc1234"
+
+
+def test_wait_until_running(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(deploy_space.time, "sleep", lambda _: None)
+    api = FakeApi(["BUILDING", "RUNNING_APP_STARTING", "RUNNING"])
+    assert deploy_space.wait_until_running(api, "me/s", timeout_s=60, interval_s=0) == "RUNNING"
+    failing = FakeApi(["BUILDING", "BUILD_ERROR"])
+    assert deploy_space.wait_until_running(failing, "me/s", timeout_s=60, interval_s=0) == (
+        "BUILD_ERROR"
+    )
+
+
+def test_deploy_requires_a_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    with pytest.raises(SystemExit):
+        deploy_space.main(["--space", "me/nexusrag"])
+
+
+# --------------------------------------------------------------------------- smoke test
+
+
+def test_healthcheck_expects_page_content(server: HTTPServer) -> None:
+    url = f"http://127.0.0.1:{server.server_port}/"
+    assert healthcheck.check(url, 5, expect="ok")[0]
+    healthy, detail = healthcheck.check(url, 5, expect="NexusRAG")
+    assert not healthy
+    assert "missing" in detail
+
+
+def test_healthcheck_retries_until_healthy(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(healthcheck.time, "sleep", lambda _: None)
+    attempts = []
+
+    def flaky(url: str, timeout_s: float, expect: str | None = None) -> tuple[bool, str]:
+        attempts.append(url)
+        return (len(attempts) >= 3, f"attempt {len(attempts)}")
+
+    monkeypatch.setattr(healthcheck, "check", flaky)
+    healthy, _ = healthcheck.wait_for(
+        "http://x/", timeout_s=1, expect=None, retries=5, interval_s=0
+    )
+    assert healthy
+    assert len(attempts) == 3  # stops as soon as it is healthy
