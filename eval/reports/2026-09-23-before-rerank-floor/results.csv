@@ -1,0 +1,552 @@
+config,item_id,kind,answerable,route,refused,answer,hit,reciprocal_rank,context_precision,context_recall,faithfulness,answer_relevance,unsupported_claims,latency_ms,cost_usd,llm_calls,retries,fallbacks,error,judge_error
+dense,q001,fact,True,doc_qa,False,"The document revision for the Aurora X1 specifications is revision C, and it was published in March 2026 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,6234.162000007927,0.0012887,3,0,0,,
+dense,q002,fact,True,doc_qa,False,"The Aurora X1 replaces the Aurora X0, which was discontinued in 2024 [2].",1.0,0.5,0.5,1.0,1.0,1.0,,2533.67289993912,0.0006525,3,0,0,,
+dense,q003,table,True,doc_qa,False,"The capacity of the Aurora X1 battery is 12,000 mAh [1]. Additionally, the battery has a nominal voltage of 44.4 V (12S), an energy of 533 Wh, and a weight of 1.9 kg [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3451.9006999908015,0.0008888,3,0,0,,
+dense,q004,numeric,True,doc_qa,False,The payload mount on the Aurora X1 supports payloads of up to 2.2 kg [2].,1.0,0.5,0.5,1.0,1.0,1.0,,2549.231700017117,0.0007934999999999999,3,0,0,,
+dense,q005,numeric,True,doc_qa,False,The Aurora X1 automatically returns home when the control link is lost for more than 3 seconds [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3393.83389998693,0.0012898,3,0,0,,
+dense,q006,table,True,doc_qa,False,"You need to get a full service for the Aurora X1 drone at an authorised Skylark service centre every 12 months [1]. Following the maintenance schedule, which includes this 12-month full service, is a condition of the warranty [1].",1.0,1.0,1.0,1.0,1.0,1.0,,66113.84449999605,0.0008970000000000001,3,1,0,,
+dense,q007,numeric,True,doc_qa,False,"The Borealis S2 is designed to map up to 1,000 hectares in a single flight [1]. Specifically, its coverage per flight reaches 1,000 hectares when operating at a resolution of 3 cm/px [2].",1.0,1.0,1.0,1.0,1.0,1.0,,3894.025099929422,0.0007985,3,0,0,,
+dense,q008,numeric,True,doc_qa,False,The Borealis S2 has a wingspan of 2.1 meters [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2990.898499963805,0.0006961,3,0,0,,
+dense,q009,table,True,doc_qa,False,The maximum flight time for the Borealis S2 survey drone is 95 minutes [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2757.5257000280544,0.0007044,3,0,0,,
+dense,q010,numeric,True,doc_qa,False,The default altitude ceiling for the Borealis S2 geofencing feature is 120 meters [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3037.5083999242634,0.0007006,3,0,0,,
+dense,q011,table,True,doc_qa,False,You should replace the cruise motor on the Borealis S2 survey drone every 300 flight hours [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2927.2446000250056,0.0007509999999999999,3,1,0,,
+dense,q012,numeric,True,doc_qa,False,"The batteries on the Borealis S2 are covered for 12 months or 300 cycles, whichever comes first [1]. This is part of the 24-month limited warranty that the Borealis S2 carries for manufacturing defects [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3331.0635999951046,0.0007615,3,0,0,,
+dense,q013,numeric,True,doc_qa,False,Standard delivery within the United States takes 3 to 5 business days [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2757.9676000168547,0.0006903,3,0,0,,
+dense,q014,numeric,True,doc_qa,False,"Opened products can be returned within 30 days with a 15% restocking fee, provided they have not been flown for more than 2 hours [1].",1.0,1.0,1.0,1.0,1.0,1.0,,2667.8168999496847,0.0007731,3,0,0,,
+dense,q015,fact,True,doc_qa,False,"As of August 2026, the latest firmware version for the Aurora X1 is version 4.2.1 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3695.891399984248,0.0013994999999999997,3,0,0,,
+dense,q016,numeric,True,doc_qa,False,One Aurora X1 battery stores 533 watt-hours (Wh) of energy [1][3].,1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,2864.5469000330195,0.0007766,3,0,0,,
+dense,q017,numeric,True,doc_qa,False,"Standard repairs take 7 to 10 business days at the Denver service centre, which does not include shipping time [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3521.413499955088,0.0006820999999999999,3,2,0,,
+dense,q018,fact,True,doc_qa,False,"Phone and chat support is available Monday to Friday from 07:00 to 19:00 Mountain Time [1]. Additionally, enterprise customers have access to a 24/7 emergency line listed in their service agreement [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3210.0351999979466,0.0008033000000000001,3,0,0,,
+dense,q019,fact,True,doc_qa,False,The Skylark Dynamics board meeting to review the Q2 2026 business review is scheduled for 21 July 2026 [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2549.9220000347123,0.0007588,3,0,0,,
+dense,q020,numeric,True,doc_qa,False,Skylark Dynamics delivered record total revenue of 48.6 million USD in the second quarter of 2026 [1][2]. This represents a 22% increase from the 39.8 million USD reported in the second quarter of 2025 [1][2].,1.0,1.0,1.0,1.0,1.0,1.0,,2823.3595000347123,0.0009094999999999999,3,0,0,,
+dense,q021,table,True,doc_qa,False,"According to the Q2 2026 business review, 1,420 units of the Aurora X1 were shipped [2].",1.0,0.5,0.5,1.0,1.0,1.0,,2495.435299933888,0.0007677999999999999,3,0,0,,
+dense,q022,numeric,True,doc_qa,False,Europe grew the fastest year over year at 31% after the Borealis S2 received its EU class C2 certification in March [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2855.593900079839,0.0008147,3,0,0,,
+dense,q023,numeric,True,doc_qa,False,"At the end of June 2026, the average order fulfilment time for Skylark Dynamics fell to 4 days [1]. This followed a previous average of 9 days at the end of April, which was impacted by a motor supplier delay [1][2].",1.0,1.0,1.0,1.0,1.0,1.0,,3185.8904999971855,0.000794,3,0,0,,
+dense,q024,numeric,True,doc_qa,False,The revenue guidance for Skylark Dynamics in Q3 2026 is 51 to 54 million USD [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2874.493099996471,0.0007929,3,0,0,,
+dense,q025,fact,True,doc_qa,False,"The main goal of the Skylark Dynamics Remote Work Policy is to provide teams with flexibility while simultaneously protecting the in-person collaboration that hardware development depends on [1]. 
+
+Additionally, the policy explains:
+- Who is eligible to work remotely [1].
+- How hybrid and fully remote arrangements work [1].
+- What equipment and allowances the company provides [1].
+- The security rules that apply when working outside the office [1].",1.0,1.0,1.0,1.0,1.0,1.0,,2978.1994000077248,0.0008427,3,0,0,,
+dense,q026,numeric,True,doc_qa,False,Lab engineers are allowed up to 1 remote day per week because their roles require hands-on work with hardware [2].,1.0,0.5,0.5,1.0,1.0,1.0,,2775.150000001304,0.000695,3,0,0,,
+dense,q027,numeric,True,doc_qa,False,"Under the default hybrid schedule, employees work at least 2 days per week in the office [1]. 
+
+Additional details regarding this arrangement include:
+- Tuesdays and Thursdays serve as anchor days for all teams at the Denver headquarters, and team rituals like planning and design reviews should be scheduled on those days [1].
+- Teams may agree on a third office day, but it cannot be made mandatory for the whole team without department-head approval [1].
+- Travel to the office on anchor days is not reimbursed for hybrid employees [4].",1.0,1.0,1.0,1.0,1.0,1.0,,3203.3842999953777,0.0009333,3,0,0,,
+dense,q028,table,True,doc_qa,False,The monthly internet allowance for employees under the Skylark Dynamics Remote Work Policy is 50 USD [1]. Stipends are paid in local currency at the exchange rate on the first working day of the month through regular payroll [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3007.1731000207365,0.000828,3,0,0,,
+dense,q029,numeric,True,doc_qa,False,The deadline for reporting a lost or stolen device is within 1 hour [1]. You must report the incident to security@skylark-dynamics.example [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3346.6190999606624,0.0007088,3,1,0,,
+dense,q030,numeric,True,doc_qa,False,"Fully remote employees are reimbursed for hotel costs of up to 180 USD per night when traveling to headquarters [1]. 
+
+Additional details regarding travel and expenses for fully remote employees include:
+- Reimbursement covers up to 4 trips per year to headquarters [1].
+- Economy airfare is also included in the reimbursement [1].
+- All expenses must be submitted in PeopleHub within 30 days of the trip [1].",1.0,1.0,1.0,1.0,1.0,1.0,,29550.32929999288,0.0022012,3,5,0,,
+dense,q031,comparison,True,compare_documents,False,"The Aurora X1 is a rugged quadcopter designed for utility and infrastructure inspection, whereas the Borealis S2 is a fixed-wing VTOL survey drone built for large-area mapping, agriculture, and mining surveys [1][5].
+
+| Attribute | Aurora X1 Field Drone Technical Specification | Borealis S2 Survey Drone Product Sheet |
+|---|---|---|
+| Primary design | Rugged quadcopter with carbon-fibre monocoque and folding arms (diagonal wheelbase 780 mm unfolded; 410 x 290 x 180 mm folded) [1][2] | Fixed-wing VTOL survey drone with a 2.1 m wingspan, 1.2 m length, built from EPO foam and carbon composite spar [4][5] |
+| Intended applications | Field inspection of power lines, pipelines, and wind turbines for utility companies and infrastructure inspection contractors [1] | Large-area mapping, agriculture, and mining surveys for surveyors mapping up to 1,000 hectares in a single flight [5] |
+| Take-off weight | 4.2 kg (with one battery and no payload); maximum take-off weight 6.4 kg [2] | 7.8 kg; maximum take-off weight 9.5 kg [4] |
+| Payload capacity | Up to 2.2 kg [3] | 1.2 kg [6] |
+
+### Key Differences
+* **Design and Form Factor:** The Aurora X1 is a quadcopter with a carbon-fibre monocoque and folding arms (780 mm diagonal wheelbase) [1][2], while the Borealis S2 is a fixed-wing VTOL drone with a 2.1 m wingspan and 1.2 m length made of EPO foam and carbon composite [4][5].
+* **Intended Applications:** The X1 targets utility companies and infrastructure contractors for inspecting power lines, pipelines, and wind turbines [1]. The S2 targets surveyors for large-area mapping, agriculture, and mining surveys covering up to 1,000 hectares in a single flight [5].
+* **Weight and Payload:** The X1 has a take-off weight of 4.2 kg (max 6.4 kg) and supports payloads up to 2.2 kg [2][3]. The S2 has a take-off weight of 7.8 kg (max 9.5 kg) and supports a 1.2 kg payload [4][6].
+* **Positioning:** The X1 requires an optional RTK-2 module for RTK positioning (1 cm + 1 ppm horizontal accuracy) [3], whereas the S2 has built-in RTK and PPK GNSS [6].
+
+### Key Similarities
+* Both documents specify detailed technical parameters for professional unmanned aerial vehicles, including airframe specifications, battery system metrics (chemistry, capacity, energy, charge time, cycles, and weight), and standard/optional sensor payloads [1][2][3][4][5][6].",1.0,1.0,0.7,1.0,1.0,1.0,,5154.610099969432,0.0024628999999999996,4,0,0,,
+dense,q032,comparison,True,compare_documents,False,"The battery weight of the Aurora X1 Field Drone is 1.9 kg [1], whereas the battery weight of the Borealis S2 Survey Drone is 2.6 kg [4].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Battery weight | 1.9 kg [1] | 2.6 kg [4] |
+
+* **Key Differences:**
+  * The Aurora X1 battery weighs 1.9 kg [1], while the Borealis S2 battery is heavier at 2.6 kg [4].
+  * The Aurora X1 uses hot-swappable smart batteries that can be changed without powering down the flight computer [1], whereas the Borealis S2 battery is not hot-swappable and requires the aircraft to be powered off before changing [4].
+  * The Aurora X1 battery has a lithium-ion (21700 cells) chemistry, a 12,000 mAh capacity, a 44.4 V (12S) nominal voltage, and 533 Wh of energy [1]. The Borealis S2 battery uses semi-solid-state lithium-ion chemistry, a 22,000 mAh capacity, a 22.2 V (6S) nominal voltage, and 488 Wh of energy [4].
+
+* **Key Similarities:**
+  * Both drones use batteries based on lithium-ion technology [1][4].
+  * Both drones specify their battery's rated cycles to 80% capacity [1][4].",1.0,1.0,0.75,1.0,1.0,1.0,,3647.2941999090835,0.0016838,4,0,0,,
+dense,q033,comparison,True,compare_documents,False,"The Aurora X1 Field Drone has a maximum horizontal speed of 72 km/h [1], whereas the Borealis S2 Survey Drone has a maximum horizontal speed of 90 km/h [5].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Maximum horizontal speed | 72 km/h [1] | 90 km/h [5] |
+
+* **Key Differences:**
+  * The Aurora X1 has a lower maximum horizontal speed of 72 km/h [1] compared to the Borealis S2's 90 km/h [5].
+* **Key Similarities:**
+  * Neither document provides any conditional exceptions or varying operating modes for their respective maximum horizontal speeds [1][5].",1.0,1.0,0.7,1.0,1.0,1.0,,7304.429900017567,0.0013675999999999998,4,0,0,,
+dense,q034,comparison,True,compare_documents,False,"The Aurora X1 Field Drone supports payloads of up to 2.2 kg [1], whereas the Borealis S2 Survey Drone has a payload capacity of 1.2 kg [5].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Payload capacity | Up to 2.2 kg [1] | 1.2 kg [5] |
+
+* **Key Differences:**
+  * The Aurora X1 supports a higher payload capacity of up to 2.2 kg using the Skylark QuickLock interface [1], compared to the Borealis S2's payload capacity of 1.2 kg [5].
+
+* **Key Similarities:**
+  * Both drones specify a maximum payload weight limit in their hardware specifications [1][5].",1.0,1.0,0.7,1.0,1.0,1.0,,4596.002799997223,0.0012574,4,0,0,,
+dense,q035,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. 
+
+The documents do contain information about the obstacle sensing system, which uses six stereo vision pairs and an upward-facing time-of-flight sensor to provide omnidirectional detection from 0.5 m to 40 m [1].",,,,,,,,7419.898199965246,0.0012461,3,0,0,,
+dense,q036,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do provide technical specifications for the aircraft's 18-inch folding propellers, but they do not list pricing for replacement parts [1].",,,,,,,,3902.2740999935195,0.0014630999999999997,3,0,0,,
+dense,q037,unanswerable,False,doc_qa,True,I couldn't find this in your documents. The passages do contain information about the Denver service centre and its repair times [1].,,,,,,,,6522.087399964221,0.0006767,3,0,0,,
+dense,q038,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about shipping times for standard, express, and international delivery to Canada, the European Union, and India [1].",,,,,,,,2972.245699958876,0.0007295,3,0,0,,
+dense,q039,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information on overall company gross margin, product line revenue, and units shipped for the Borealis S2 [2][3][4].",,,,,,,,7628.9495000382885,0.0019286000000000001,3,0,0,,
+dense,q040,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The provided passages do contain regional performance data for Europe, including its year-over-year growth rate and EU class C2 certification details for the Borealis S2, but they do not mention the head of the European regional sales team [1].",,,,,,,,3273.9078999729827,0.0008816,3,0,0,,
+dense,q041,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about remote work eligibility, hybrid schedules, fully remote arrangements, core hours, and travel expense policies for Skylark Dynamics employees [1][2][3][4][5].",,,,,,,,2964.454900007695,0.0007855,3,0,0,,
+dense,q042,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about the hardware specifications, pricing, warranty, sensors, and payload capacity of the Borealis S2.",,,,,,,,9625.518299988471,0.0007396,3,0,0,,
+dense,q043,paraphrase,True,doc_qa,False,The Borealis S2 survey drone has a maximum flight time of 95 minutes on one battery [2].,1.0,0.5,0.5,1.0,1.0,1.0,,4669.732899987139,0.0007206000000000001,3,0,0,,
+dense,q044,paraphrase,True,doc_qa,False,"No, you cannot take Aurora X1 batteries on a passenger plane [1]. Each Aurora X1 battery holds 533 Wh, which exceeds the 160 Wh limit allowed by airlines for passengers, meaning they cannot be carried on or checked in [1]. Instead, you must use ground shipping to move them between sites [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3293.6819000169635,0.0009165,3,0,0,,
+dense,q045,paraphrase,True,doc_qa,False,"If the Aurora X1 loses its control link for more than 3 seconds, it automatically initiates a return-to-home function [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3215.4223999241367,0.0007644,3,0,0,,
+dense,q046,paraphrase,True,doc_qa,False,"If the control link for the Borealis S2 is lost for more than 5 seconds, the aircraft initiates an automatic return-to-home [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3009.7176999552175,0.0007706,3,0,0,,
+dense,q047,paraphrase,True,doc_qa,False,"Yes, you can get your money back for an opened drone if it is returned within 30 days of delivery, as long as it has not been flown for more than 2 hours [1]. 
+
+* A 15% restocking fee applies to opened products [1].
+* Custom-configured enterprise kits are an exception and cannot be returned under any circumstances [1].
+* Refunds are issued to the original payment method within 10 business days after the returned item passes inspection [1].",1.0,1.0,1.0,1.0,1.0,1.0,,4757.647300022654,0.0015317,3,0,0,,
+dense,q048,paraphrase,True,doc_qa,False,Skylark Dynamics provides an ergonomic chair reimbursement of up to 400 USD every 3 years [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2503.864300000714,0.0007481,3,0,0,,
+dense,q049,paraphrase,True,doc_qa,False,"For hybrid employees at the Denver headquarters, Tuesdays and Thursdays are mandatory anchor days for all teams [1]. 
+
+Teams may also agree upon a third office day, though it cannot be made mandatory for the entire team without approval from the department head [1]. Depending on your specific role or employment type, other office attendance expectations may apply:
+- **Hardware roles** (assembly technicians, test pilots, and lab engineers) are eligible for up to one remote day per week, meaning they are in the office four days a week [2].
+- **Interns** are expected to be in the office four days per week [2].",1.0,1.0,1.0,1.0,1.0,1.0,,4274.928100057878,0.0009082999999999999,3,0,0,,
+dense,q050,paraphrase,True,doc_qa,False,"In April, motor supplier Voltra Motion delayed shipments by five weeks, which directly reduced the output of Aurora X1 drones [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3608.8733000215143,0.0011851,3,0,0,,
+dense,q051,paraphrase,True,doc_qa,False,"The operating temperature of the Aurora X1 ranges from -20 to 50 degrees Celsius [1]. Additionally, flights are expected to be roughly 15% shorter when operating below 0 degrees Celsius [1].",1.0,1.0,1.0,1.0,1.0,1.0,,8950.542900012806,0.0008089,3,0,0,,
+dense,q052,paraphrase,True,doc_qa,False,Skylark plans to hire 40 engineers next quarter [1]. These new hires will mainly be for the Aurora X2 programme [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2933.929599937983,0.0007385,3,0,0,,
+dense,q053,identifier,True,doc_qa,False,"The TH-640 is an optional thermal module for the Aurora X1 that adds a 640 x 512 radiometric thermal sensor used for detecting hotspots on electrical equipment [2]. 
+
+It became the most popular accessory for the Aurora X1, being attached to 38% of the kits sold during the quarter [3].",1.0,0.5,0.5,1.0,1.0,1.0,,3518.2938000070862,0.0009004,3,0,0,,
+dense,q054,identifier,True,doc_qa,False,"The LX-1 LiDAR module captures 240,000 points per second [1].",1.0,1.0,1.0,1.0,1.0,1.0,,2823.7556000240147,0.0007041999999999999,3,0,0,,
+dense,q055,identifier,True,doc_qa,False,"Document SKD-PS-BS2 describes the Borealis S2, which is a fixed-wing VTOL survey drone designed for large-area mapping, agriculture, and mining surveys [1][5].",1.0,1.0,0.7,1.0,1.0,1.0,,2819.057200103998,0.0007309999999999999,3,0,0,,
+dense,q056,identifier,True,doc_qa,False,GlobalConnect is used as the company VPN to connect to internal systems [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2812.9819000605494,0.0006131,3,0,0,,
+dense,q057,identifier,True,doc_qa,False,"You use PeopleHub for the following tasks related to the remote work policy:
+
+* Submit the Remote Work Request form when proposing a change to your work arrangement [2].
+* Submit your travel and expenses within 30 days of a trip (applicable to fully remote employees seeking reimbursement for up to 4 trips per year to headquarters) [4].",1.0,0.5,0.5,1.0,1.0,1.0,,3127.8440000023693,0.0007748,3,0,0,,
+dense,q058,identifier,True,doc_qa,False,The Skylark VZ-20 gimbal camera features a 20-megapixel 1-inch sensor [1].,1.0,1.0,1.0,1.0,1.0,1.0,,23722.09660000226,0.00034749999999999994,2,8,0,,
+dense,q059,keyword,True,doc_qa,False,"The Borealis S2 LiDAR kit costs 31,500 USD [1][4].",1.0,1.0,0.75,1.0,1.0,1.0,,3880.7583999587223,0.0007106,3,1,0,,
+dense,q060,keyword,True,doc_qa,False,"Batteries should be stored at a temperature between 15 and 25 degrees Celsius [1][2]. 
+
+Additionally, the following conditions apply for storage:
+* Batteries should be kept at 40 to 60% charge in a dry place [1].
+* Smart batteries will automatically discharge themselves to a storage level (or 60%) if they are not used for 10 days to extend their service life [1][2].
+* For storage that lasts longer than three months, it is specifically noted to keep the batteries between 15 and 25 degrees Celsius [2].",1.0,1.0,1.0,1.0,1.0,1.0,,4066.1443999269977,0.0010895,3,0,0,,
+dense,q061,keyword,True,doc_qa,False,"The Q2 2026 gross margin is 41.5%, which improved from 38.9% in Q2 2025 [1][2]. This improvement was driven by the Borealis S2 moving to higher-volume production [2].",1.0,1.0,1.0,1.0,1.0,1.0,,3247.0935999881476,0.0007841,3,0,0,,
+hybrid,q001,fact,True,doc_qa,False,The Aurora X1 specifications document (SKD-SPEC-AX1) is revision C and was published in March 2026 by Skylark Dynamics Engineering [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3450.791500043124,0.0013544,3,0,0,,
+hybrid,q002,fact,True,doc_qa,False,"The Aurora X1 replaces the Aurora X0, which was discontinued in 2024 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,6960.303400061093,0.0006849,3,0,0,,
+hybrid,q003,table,True,doc_qa,False,"The capacity of the Aurora X1 battery is 12,000 mAh, which provides an energy of 533 Wh [1].",1.0,1.0,1.0,1.0,1.0,1.0,,12695.499299908988,0.0007933,3,0,0,,
+hybrid,q004,numeric,True,doc_qa,False,The payload mount on the Aurora X1 supports payloads of up to 2.2 kg [2].,1.0,0.5,0.5,1.0,1.0,1.0,,4194.707500049844,0.000796,3,0,0,,
+hybrid,q005,numeric,True,doc_qa,False,The Aurora X1 automatically returns home when the control link is lost for more than 3 seconds [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3522.6449000183493,0.0014653000000000001,3,0,0,,
+hybrid,q006,table,True,doc_qa,False,You need to get a full service for the Aurora X1 drone at an authorised Skylark service centre every 12 months [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3937.893999973312,0.000817,3,0,0,,
+hybrid,q007,numeric,True,doc_qa,False,"The Borealis S2 is designed for surveyors who map up to 1,000 hectares in a single flight [1]. Specifically, the coverage per flight at 3 cm/px is 1,000 hectares [2].",1.0,1.0,1.0,1.0,1.0,1.0,,3865.126600023359,0.0008378999999999999,3,0,0,,
+hybrid,q008,numeric,True,doc_qa,False,The Borealis S2 airframe has a wingspan of 2.1 meters [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3173.821200034581,0.0006746,3,0,0,,
+hybrid,q009,table,True,doc_qa,False,The maximum flight time for the Borealis S2 survey drone is 95 minutes [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3172.6894000021275,0.0006911999999999999,3,0,0,,
+hybrid,q010,numeric,True,doc_qa,False,The default altitude ceiling for the Borealis S2 geofencing feature is 120 m [1].,1.0,1.0,1.0,1.0,1.0,1.0,,9590.171500109136,0.0007035,3,0,0,,
+hybrid,q011,table,True,doc_qa,False,You should replace the cruise motor on the Borealis S2 survey drone every 300 flight hours [1].,1.0,1.0,1.0,1.0,1.0,1.0,,8257.656599977054,0.0007295,3,0,0,,
+hybrid,q012,numeric,True,doc_qa,False,"The batteries on the Borealis S2 are covered for 12 months or 300 cycles, whichever comes first [1]. This is part of the 24-month limited warranty that the Borealis S2 carries for manufacturing defects [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3402.83899998758,0.0008009,3,0,0,,
+hybrid,q013,numeric,True,doc_qa,False,Standard delivery within the United States takes 3 to 5 business days [1].,1.0,1.0,1.0,1.0,1.0,1.0,,15369.119800045155,0.0006961000000000001,3,0,0,,
+hybrid,q014,numeric,True,doc_qa,False,"Opened products can be returned within 30 days with a 15% restocking fee, provided they have not been flown for more than 2 hours [1].",1.0,1.0,1.0,1.0,1.0,1.0,,2978.6567999981344,0.0007243,3,0,0,,
+hybrid,q015,fact,True,doc_qa,False,"As of August 2026, the latest firmware version for the Aurora X1 is version 4.2.1 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,4080.45150001999,0.0013415,3,0,0,,
+hybrid,q016,numeric,True,doc_qa,False,One Aurora X1 battery stores 533 Wh of energy [1][3].,1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,2831.1063000001013,0.0007957999999999999,3,0,0,,
+hybrid,q017,numeric,True,doc_qa,False,"Standard repairs take 7 to 10 business days at the Denver service centre, not counting shipping time [1].",1.0,1.0,1.0,1.0,1.0,1.0,,5000.956499949098,0.0006884999999999999,3,0,0,,
+hybrid,q018,fact,True,doc_qa,False,Phone and chat support is available Monday to Friday from 07:00 to 19:00 Mountain Time [1]. Enterprise customers also have access to a 24/7 emergency line listed in their service agreement [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3685.1007000077516,0.0007819999999999999,3,0,0,,
+hybrid,q019,fact,True,doc_qa,False,The Skylark Dynamics board meeting for the Q2 2026 review is scheduled for 21 July 2026 [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2847.4423000589013,0.0007639,3,0,0,,
+hybrid,q020,numeric,True,doc_qa,False,Skylark Dynamics delivered record total revenue of 48.6 million USD in the second quarter of 2026 [1][3]. This represents a 22% increase from the 39.8 million USD reported in the second quarter of 2025 [1][3].,1.0,0.3333333333333333,0.8333333333333333,1.0,1.0,1.0,,6213.74390006531,0.000879,3,0,0,,
+hybrid,q021,table,True,doc_qa,False,"According to the Skylark Dynamics Q2 2026 report, 1,420 units of the Aurora X1 were shipped [2].",1.0,0.5,0.5,1.0,1.0,1.0,,3805.0782000645995,0.0007536999999999999,3,0,0,,
+hybrid,q022,numeric,True,doc_qa,False,Europe grew the fastest year over year at 31% after the Borealis S2 received its EU class C2 certification in March [1].,1.0,1.0,1.0,1.0,1.0,1.0,,10584.202399943024,0.0008072000000000001,3,0,0,,
+hybrid,q023,numeric,True,doc_qa,False,"At the end of June 2026, the average order fulfilment time for Skylark Dynamics fell to 4 days [1].",1.0,1.0,1.0,1.0,1.0,1.0,,29703.172299894504,0.0007601999999999999,3,0,0,,
+hybrid,q024,numeric,True,doc_qa,False,The revenue guidance for Skylark Dynamics in Q3 2026 is 51 to 54 million USD [1].,1.0,1.0,1.0,1.0,1.0,1.0,,6789.4080999540165,0.0007848999999999999,3,0,0,,
+hybrid,q025,fact,True,doc_qa,False,"The main goal of the Skylark Dynamics Remote Work Policy is to explain who can work remotely, how hybrid and fully remote arrangements function, the equipment and allowances provided by the company, and the security rules that apply outside the office [1]. Ultimately, the policy aims to provide teams with flexibility while also protecting the in-person collaboration that is essential for hardware development [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3946.0362000390887,0.0008204,3,0,0,,
+hybrid,q026,numeric,True,doc_qa,False,Lab engineers are allowed up to 1 remote day per week because their roles require hands-on work with hardware [2].,1.0,0.5,0.5,1.0,1.0,1.0,,13546.206000028178,0.0006925,3,0,0,,
+hybrid,q027,numeric,True,doc_qa,False,"Under the default hybrid schedule, employees work at least 2 days per week in the office [1]. Tuesdays and Thursdays serve as anchor days for all teams at the Denver headquarters, and teams may mutually agree on a third office day, though a third day cannot be made mandatory for the whole team without department-head approval [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3357.717499951832,0.0008232999999999999,3,0,0,,
+hybrid,q028,table,True,doc_qa,False,The monthly internet allowance is 50 USD [1]. Stipends are paid in local currency at the exchange rate on the first working day of the month through regular payroll [1].,1.0,1.0,1.0,1.0,1.0,1.0,,3915.401699952781,0.0017430000000000002,3,0,0,,
+hybrid,q029,numeric,True,doc_qa,False,The deadline for reporting a lost or stolen device is within 1 hour to security@skylark-dynamics.example [1].,1.0,1.0,1.0,1.0,1.0,1.0,,14627.992099965923,0.0006888,3,0,0,,
+hybrid,q030,numeric,True,doc_qa,False,"Fully remote employees traveling to headquarters are reimbursed for hotel costs of up to 180 USD per night [1]. 
+
+Here are the additional details regarding travel and expense reimbursement:
+* Reimbursement is provided for up to 4 trips per year to headquarters, which also includes economy airfare [1].
+* All expenses must be submitted in PeopleHub within 30 days of the trip [1].",1.0,1.0,1.0,1.0,1.0,1.0,,15618.312500067987,0.0019537,3,0,0,,
+hybrid,q031,comparison,True,compare_documents,False,"The Aurora X1 is a rugged quadcopter designed for field inspection of power lines, pipelines, and wind turbines [1], whereas the Borealis S2 is a fixed-wing VTOL survey drone built for large-area mapping, agriculture, and mining surveys [5].
+
+| Attribute | Aurora X1 Field Drone Technical Specification | Borealis S2 Survey Drone Product Sheet |
+|---|---|---|
+| Primary design | Rugged quadcopter with a carbon-fibre monocoque and folding arms (780 mm diagonal wheelbase, 4.2 kg take-off weight without payload) [1][2] | Fixed-wing VTOL with a 2.1 m wingspan, 1.2 m length, and EPO foam construction reinforced with carbon composite (7.8 kg take-off weight) [4][5] |
+| Intended applications | Field inspection of power lines, pipelines, and wind turbines [1] | Large-area mapping, agriculture, and mining surveys (mapping up to 1,000 hectares in a single flight) [5] |
+
+### Key Differences
+* **Design and Form Factor:** The Aurora X1 is a quadcopter with a carbon-fibre monocoque and folding arms [2], while the Borealis S2 is a fixed-wing VTOL aircraft made of EPO foam and carbon composite [4][5].
+* **Intended Use:** The X1 targets utility companies and infrastructure inspection contractors for inspecting power lines, pipelines, and wind turbines [1]; the S2 targets surveyors for large-area mapping, agriculture, and mining surveys up to 1,000 hectares [5].
+* **Weight:** The X1 has a take-off weight of 4.2 kg (without payload, max 6.4 kg) [2], whereas the S2 has a take-off weight of 7.8 kg (max 9.5 kg) [4].
+
+### Key Similarities
+* **Material Reinforcement:** Both aircraft incorporate carbon materials in their structural designs (carbon-fibre monocoque for the X1 and a carbon composite spar for the S2) [2][4].",1.0,1.0,0.7,1.0,1.0,1.0,,14780.697200098075,0.0019278999999999998,4,0,0,,
+hybrid,q032,comparison,True,compare_documents,False,"The battery weight of the Aurora X1 Field Drone is 1.9 kg, whereas the battery weight of the Borealis S2 Survey Drone is 2.6 kg [1][4].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Battery weight | 1.9 kg [1] | 2.6 kg [4] |
+
+* **Key Differences:**
+  * The Aurora X1 battery weighs 1.9 kg [1], while the Borealis S2 battery weighs 2.6 kg [4].
+  * The Aurora X1 uses hot-swappable smart lithium-ion batteries (21700 cells) [1], whereas the Borealis S2 uses semi-solid-state lithium-ion batteries that are not hot-swappable and require the aircraft to be powered off [4].
+
+* **Key Similarities:**
+  * Both drones use lithium-ion based battery systems and list their specific battery weights in their technical documentation [1][4].",1.0,1.0,0.75,1.0,1.0,1.0,,13333.810699987225,0.0013559,4,0,0,,
+hybrid,q033,comparison,True,compare_documents,False,"The Borealis S2 Survey Drone has a higher maximum horizontal speed of 90 km/h compared to the Aurora X1 Field Drone's maximum horizontal speed of 72 km/h.
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Maximum horizontal speed | 72 km/h [1] | 90 km/h [4] |
+
+* **Key Differences:**
+  * Maximum horizontal speed is 72 km/h for the Aurora X1 [1] and 90 km/h for the Borealis S2 [4].
+* **Key Similarities:**
+  * None stated regarding speed or performance metrics.",1.0,1.0,0.75,1.0,1.0,1.0,,4468.788800062612,0.0012303,4,0,0,,
+hybrid,q034,comparison,True,compare_documents,False,"The Aurora X1 Field Drone supports payloads of up to 2.2 kg [2], whereas the Borealis S2 Survey Drone has a payload capacity of 1.2 kg [5].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Payload capacity | Up to 2.2 kg [2] | 1.2 kg [5] |
+
+* **Key Differences:**
+  * The Aurora X1 supports a heavier maximum payload of up to 2.2 kg [2], while the Borealis S2 supports up to 1.2 kg [5].
+  * The Aurora X1 uses the Skylark QuickLock interface for its payload mount and features the Skylark VZ-20 gimbal camera as its standard payload, with an optional TH-640 thermal module [2].
+  * The Borealis S2 features the MP-45 mapping camera as its standard payload and offers an optional LX-1 LiDAR module [5].
+
+* **Key Similarities:**
+  * Both drones specify a maximum payload capacity limit to define their operational equipment limits [2][5].",1.0,0.5,0.45,1.0,1.0,1.0,,6447.516400017776,0.0014557999999999997,4,0,0,,
+hybrid,q035,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about the components and range of the obstacle sensing system, which uses six stereo vision pairs and an upward-facing time-of-flight sensor for omnidirectional detection from 0.5 m to 40 m [1].",,,,,,,,6099.133800016716,0.0013754,3,0,0,,
+hybrid,q036,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do mention that the aircraft uses 18-inch folding propellers and detail the warranty and Skylark Care Plus coverage, but they do not state the price of replacement propellers [2][3].",,,,,,,,4046.4375999290496,0.0017902,3,0,0,,
+hybrid,q037,unanswerable,False,doc_qa,True,I couldn't find this in your documents. The passages do contain information about standard repair times and diagnostic fees at the Denver service centre [1].,,,,,,,,3161.678300006315,0.000982,3,0,0,,
+hybrid,q038,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The provided documents do contain information about international shipping times to Canada, the European Union, and India [1].",,,,,,,,6433.576800045557,0.0006954999999999999,3,0,0,,
+hybrid,q039,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain revenue, units shipped, and pricing details for the Borealis S2 product line, as well as company-wide gross margin and operating income figures [2][3][4].",,,,,,,,5675.982400076464,0.0021234,3,0,0,,
+hybrid,q040,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about European regional performance and revenue generation, but they do not mention the head of the European regional sales team [1].",,,,,,,,5770.100300083868,0.0007799,3,0,0,,
+hybrid,q041,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about remote work policies, travel expenses, work arrangements, equipment stipends, and office schedules.",,,,,,,,9558.163100038655,0.000722,3,0,0,,
+hybrid,q042,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain related information regarding the Borealis S2's pricing, warranty, hardware specifications, airframe dimensions, and battery system.",,,,,,,,4336.876299930736,0.0016431,3,0,0,,
+hybrid,q043,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The provided passages do contain information about other battery specifications, such as its capacity, charge time, weight, and warranty.",0.0,0.0,0.0,0.0,,0.0,,63656.923099886626,0.0007041,3,1,0,,
+hybrid,q044,paraphrase,True,doc_qa,False,"No, you cannot take Aurora X1 batteries with you on a passenger plane [1]. 
+
+* Each Aurora X1 battery holds 533 Wh, which exceeds the 160 Wh limit allowed by airlines for passengers [1].
+* Therefore, they cannot be carried on or checked in on passenger flights [1].
+* You must use ground shipping to move these batteries between sites [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3960.6891999719664,0.0009155000000000001,3,0,0,,
+hybrid,q045,paraphrase,True,doc_qa,False,"If the Aurora X1 loses its control link for more than 3 seconds, it automatically initiates a return-to-home sequence [3].",1.0,0.3333333333333333,0.3333333333333333,1.0,1.0,1.0,,3111.93470004946,0.000796,3,0,0,,
+hybrid,q046,paraphrase,True,doc_qa,False,"If the control link is lost for more than 5 seconds, the Borealis S2 automatically triggers a return-to-home function [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3268.4189999708906,0.0007352,3,0,0,,
+hybrid,q047,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about the limited warranties, battery coverage, and Skylark Care Plus accidental-damage replacement plans available for the Aurora X1 and Borealis S2 drones [1][3][5].",0.0,0.0,0.0,0.0,,0.0,,4305.49349996727,0.0017858,3,0,0,,
+hybrid,q048,paraphrase,True,doc_qa,False,"Skylark provides financial support for ergonomic desk chairs for home offices [1]. 
+
+Here are the details of the reimbursement:
+* **Amount:** Up to 400 USD [1].
+* **Frequency:** Every 3 years [1].",1.0,1.0,1.0,1.0,1.0,1.0,,4689.917500014417,0.0017685,3,0,0,,
+hybrid,q049,paraphrase,True,doc_qa,False,"You are expected to be in the Denver office on Tuesdays and Thursdays, which are designated as anchor days for all teams [1]. Additionally, teams may agree upon a third office day, though it cannot be made mandatory for the entire team without approval from the department head [1].",1.0,1.0,1.0,1.0,1.0,1.0,,3257.4977999320254,0.0007528,3,0,0,,
+hybrid,q050,paraphrase,True,doc_qa,False,"The company built fewer Aurora X1 drones in April because its motor supplier, Voltra Motion, delayed shipments by five weeks [1]. This motor supply constraint reduced the output and slowed deliveries of the aircraft [1][4]. The issue was subsequently resolved in May after the team qualified a second motor supplier [1][4].",1.0,1.0,0.75,1.0,1.0,1.0,,3750.081800040789,0.0012735,3,0,0,,
+hybrid,q051,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about storage temperature guidelines for the batteries and environmental conditions like light rain and gusty wind, but they do not state the minimum operating temperature for the aircraft [1][2].",0.0,0.0,0.0,0.0,,0.0,,3245.5691999930423,0.0007611999999999999,3,0,0,,
+hybrid,q052,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. 
+
+The passages do contain past headcount figures, showing that the company's employee count grew from 412 to 486 between Q2 2025 and Q2 2026 [1].",0.0,0.0,0.0,0.0,,0.0,,5482.822500052862,0.0020772,3,1,0,,
+hybrid,q053,identifier,True,doc_qa,False,"The TH-640 is an optional thermal module and the most popular accessory for the Aurora X1, attached to 38% of Aurora X1 kits sold in the quarter [1]. 
+
+It adds a 640 x 512 radiometric thermal sensor to the aircraft, which is used for detecting hotspots on electrical equipment [2].",1.0,0.5,0.5,1.0,1.0,1.0,,3379.090600006748,0.0008879000000000001,3,0,0,,
+hybrid,q054,identifier,True,doc_qa,False,"The LX-1 LiDAR module captures 240,000 points per second [1].",1.0,1.0,1.0,1.0,1.0,1.0,,53813.572200000635,0.0007018,3,6,0,,
+hybrid,q055,identifier,True,doc_qa,False,"Document SKD-PS-BS2 describes the Borealis S2, which is a fixed-wing VTOL survey drone designed for large-area mapping, agriculture, and mining surveys [1][5].",1.0,1.0,0.7,1.0,1.0,1.0,,3102.9720999940764,0.0007259999999999999,3,0,0,,
+hybrid,q056,identifier,True,doc_qa,False,GlobalConnect is used as the company VPN to connect to internal systems [1]. Public Wi-Fi is also allowed only when GlobalConnect is enabled [1].,1.0,1.0,1.0,1.0,1.0,1.0,,2743.555599998217,0.0006918,3,0,0,,
+hybrid,q057,identifier,True,doc_qa,False,"You use PeopleHub for the following tasks related to remote work:
+
+- Submitting your Remote Work Request form to request a change to your work arrangement [1].
+- Submitting travel and expense claims within 30 days of a trip [2].",1.0,1.0,1.0,1.0,1.0,1.0,,3071.778199999244,0.0007076,3,0,0,,
+hybrid,q058,identifier,True,doc_qa,False,The Skylark VZ-20 gimbal camera has a 20-megapixel 1-inch sensor [1].,1.0,1.0,1.0,1.0,1.0,1.0,,13449.752000000444,0.0007056999999999999,3,4,0,,
+hybrid,q059,keyword,True,doc_qa,False,"The Borealis S2 LiDAR kit costs 31,500 USD [1][3].",1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,2882.6540000009118,0.0007080999999999999,3,0,0,,
+hybrid,q060,keyword,True,doc_qa,False,"Batteries should be stored in a dry place between 15 and 25 degrees Celsius [1]. For storage longer than three months, you should also keep the batteries within this same temperature range of 15 to 25 degrees Celsius [2].",1.0,1.0,1.0,1.0,1.0,1.0,,3402.109099988593,0.0009116999999999999,3,0,0,,
+hybrid,q061,keyword,True,doc_qa,False,The Q2 gross margin for Skylark Dynamics was 38.9% in Q2 2025 and improved to 41.5% in Q2 2026 [1][3]. This improvement was driven by the Borealis S2 moving to higher-volume production [3].,1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,3606.313100011903,0.0008355,3,0,0,,
+hybrid_rerank,q001,fact,True,doc_qa,True,I couldn't find this in your documents. The passages do contain an overview and kit contents for the Aurora X1 quadcopter [1].,0.0,0.0,0.0,0.0,,0.0,,14942.758599994704,0.000575,3,0,0,,
+hybrid_rerank,q002,fact,True,doc_qa,False,"The Aurora X1 replaces the Aurora X0, which was discontinued in 2024 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,11605.240100063384,0.0010841,3,1,0,,
+hybrid_rerank,q003,table,True,doc_qa,False,"The capacity of the Aurora X1 battery is 12,000 mAh, which provides an energy of 533 Wh [1].",1.0,1.0,1.0,1.0,1.0,1.0,,29438.928899995517,0.0008879999999999999,3,4,0,,
+hybrid_rerank,q004,numeric,True,doc_qa,False,The Aurora X1 Field Drone payload mount supports payloads of up to 2.2 kg [1].,1.0,1.0,1.0,1.0,1.0,1.0,,12785.596700006863,0.0008636,3,0,0,,
+hybrid_rerank,q005,numeric,True,doc_qa,False,The Aurora X1 automatically returns home when the control link is lost for more than 3 seconds [1].,1.0,1.0,1.0,1.0,1.0,1.0,,11491.572400002042,0.000638,3,0,0,,
+hybrid_rerank,q006,table,True,doc_qa,False,You need to get a full service for the Aurora X1 drone at an authorised Skylark service centre every 12 months [1]. Following the maintenance schedule is a condition of the warranty [1].,1.0,1.0,1.0,1.0,1.0,1.0,,14396.142899990082,0.0007095999999999999,3,0,0,,
+hybrid_rerank,q007,numeric,True,doc_qa,False,"The Borealis S2 is designed to map up to 1,000 hectares in a single flight [1].",1.0,1.0,1.0,1.0,1.0,1.0,,20928.243899994413,0.0006592,3,0,0,,
+hybrid_rerank,q008,numeric,True,doc_qa,False,The Borealis S2 airframe has a wingspan of 2.1 meters [1].,1.0,1.0,1.0,1.0,1.0,1.0,,15504.022299995995,0.0006881000000000001,3,0,0,,
+hybrid_rerank,q009,table,True,doc_qa,False,The maximum flight time for the Borealis S2 survey drone is 95 minutes [1].,1.0,1.0,1.0,1.0,1.0,1.0,,14312.213700002758,0.0007884999999999999,3,0,0,,
+hybrid_rerank,q010,numeric,True,doc_qa,False,The default altitude ceiling for the Borealis S2 geofencing feature is 120 m [1].,1.0,1.0,1.0,1.0,1.0,1.0,,16336.317299996153,0.0006224,3,0,0,,
+hybrid_rerank,q011,table,True,doc_qa,False,You should replace the cruise motor on the Borealis S2 survey drone every 300 flight hours [1].,1.0,1.0,1.0,1.0,1.0,1.0,,10396.562399997492,0.0006251,3,0,0,,
+hybrid_rerank,q012,numeric,True,doc_qa,False,"The batteries on the Borealis S2 are covered for 12 months or 300 cycles, whichever comes first [1].",1.0,1.0,1.0,1.0,1.0,1.0,,10463.890400002128,0.0006720000000000001,3,0,0,,
+hybrid_rerank,q013,numeric,True,doc_qa,False,Standard delivery within the United States takes 3 to 5 business days [1].,1.0,1.0,1.0,1.0,1.0,1.0,,76401.3580000028,0.0005902,3,1,0,,
+hybrid_rerank,q014,numeric,True,doc_qa,False,"The restocking fee for returned opened items is 15%, provided they are returned within 30 days of delivery and have not been flown for more than 2 hours [1].",1.0,1.0,1.0,1.0,1.0,1.0,,10207.28250000684,0.0006000000000000001,3,0,0,,
+hybrid_rerank,q015,fact,True,doc_qa,False,"As of August 2026, the latest firmware version for the Aurora X1 is version 4.2.1 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,13127.661800011992,0.0007057,3,0,0,,
+hybrid_rerank,q016,numeric,True,doc_qa,False,One Aurora X1 battery stores 533 Wh of energy [1][3].,1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,10104.952699970454,0.0008368,3,0,0,,
+hybrid_rerank,q017,numeric,True,doc_qa,False,"Standard repairs take 7 to 10 business days at the Denver service centre, which does not include shipping time [1].",1.0,1.0,1.0,1.0,1.0,1.0,,9194.737400044687,0.0005842999999999999,3,0,0,,
+hybrid_rerank,q018,fact,True,doc_qa,False,Phone and chat support at Skylark Dynamics is available Monday to Friday from 07:00 to 19:00 Mountain Time [1].,1.0,1.0,1.0,1.0,1.0,1.0,,13015.889800037257,0.0005468,3,0,0,,
+hybrid_rerank,q019,fact,True,doc_qa,False,The Skylark Dynamics board meeting for the Q2 2026 review is scheduled for 21 July 2026 [1].,1.0,1.0,1.0,1.0,1.0,1.0,,13704.186099930666,0.0007034999999999999,3,0,0,,
+hybrid_rerank,q020,numeric,True,doc_qa,False,Skylark Dynamics delivered a record total revenue of 48.6 million USD in the second quarter of 2026 [1][2]. This represents a 22% increase from the 39.8 million USD reported in the second quarter of 2025 [1][2].,1.0,0.5,1.0,1.0,1.0,1.0,,10293.39040000923,0.0008288,3,0,0,,
+hybrid_rerank,q021,table,True,doc_qa,False,"According to the Skylark Dynamics Q2 2026 report, 1,420 units of the Aurora X1 were shipped [1].",1.0,1.0,1.0,1.0,1.0,1.0,,11716.481500072405,0.0008550999999999999,3,2,0,,
+hybrid_rerank,q022,numeric,True,doc_qa,False,Europe grew the fastest year over year at 31% after the Borealis S2 received its EU class C2 certification in March [1].,1.0,1.0,1.0,1.0,1.0,1.0,,11400.093600037508,0.0007337,3,0,0,,
+hybrid_rerank,q023,numeric,True,doc_qa,False,"At the end of June 2026, the average order fulfilment time for Skylark Dynamics fell to 4 days [1]. This was an improvement from 9 days at the end of April, returning order fulfilment times back within target after a motor supplier delay in April [1][2].",1.0,1.0,1.0,1.0,1.0,1.0,,10677.56039998494,0.0007091,3,0,0,,
+hybrid_rerank,q024,numeric,True,doc_qa,False,The revenue guidance for Skylark Dynamics in Q3 2026 is 51 to 54 million USD [1].,1.0,1.0,1.0,1.0,1.0,1.0,,9534.707399900071,0.0006891999999999998,3,0,0,,
+hybrid_rerank,q025,fact,True,doc_qa,False,"The main goal of the Skylark Dynamics Remote Work Policy is to explain who can work remotely, how hybrid and fully remote arrangements work, what equipment and allowances the company provides, and the security rules that apply outside the office [1]. Additionally, it aims to provide teams with flexibility while safeguarding the in-person collaboration required for hardware development [1].",1.0,1.0,1.0,1.0,1.0,1.0,,9185.234900098294,0.0007880999999999999,3,0,0,,
+hybrid_rerank,q026,numeric,True,doc_qa,False,"According to the Remote Work Policy, lab engineers are eligible for up to 1 remote day per week [1]. This is because roles requiring hands-on work with hardware, which includes lab engineers as well as assembly technicians and test pilots, are limited to this amount [1].",1.0,1.0,1.0,1.0,1.0,1.0,,8751.131500001065,0.0006311000000000001,3,0,0,,
+hybrid_rerank,q027,numeric,True,doc_qa,False,"Under the default hybrid schedule, employees work at least 2 days per week in the office [1]. 
+
+Additionally, Tuesdays and Thursdays serve as anchor days for all teams at the Denver headquarters [1]. Teams may also agree on a third office day, though it cannot be made mandatory for the entire team without approval from the department head [1].",1.0,1.0,1.0,1.0,1.0,1.0,,10431.697700056247,0.0007685,3,0,0,,
+hybrid_rerank,q028,table,True,doc_qa,False,"The monthly internet allowance for remote employees under the Skylark Dynamics Remote Work Policy is 50 USD [1]. 
+
+Here are additional details regarding equipment and allowances mentioned in the policy:
+* **Home office setup stipend:** 600 USD (one-time, after probation) [1].
+* **Ergonomic chair reimbursement:** Up to 400 USD (every 3 years) [1].
+* **Co-working space:** Up to 250 USD (monthly, fully remote employees only) [1].
+
+Stipends are paid in local currency at the exchange rate on the first working day of the month through regular payroll [1]. Additionally, laptops, monitors, and docking stations are provided by IT, remain company property, and must be returned within 10 working days of leaving the company [1].",1.0,1.0,1.0,1.0,1.0,1.0,,11535.785099957138,0.000981,3,3,0,,
+hybrid_rerank,q029,numeric,True,doc_qa,False,The deadline for reporting a lost or stolen device to security@skylark-dynamics.example is within 1 hour [1].,1.0,1.0,1.0,1.0,1.0,1.0,,8248.535999911837,0.0006066,3,0,0,,
+hybrid_rerank,q030,numeric,True,doc_qa,False,"Fully remote employees traveling to headquarters are reimbursed for hotel costs of up to 180 USD per night [1]. This applies to up to 4 trips per year, which also include economy airfare [1].",1.0,1.0,1.0,1.0,1.0,1.0,,10670.76490004547,0.0007786,3,0,0,,
+hybrid_rerank,q031,comparison,True,compare_documents,False,"The Aurora X1 is a rugged quadcopter designed for quick-deployment infrastructure inspection, whereas the Borealis S2 is a fixed-wing VTOL drone built for large-area mapping, agriculture, and mining surveys [1][4][5].
+
+| Attribute | Aurora X1 Field Drone Technical Specification | Borealis S2 Survey Drone Product Sheet |
+|---|---|---|
+| Primary Design | Rugged quadcopter with carbon-fibre monocoque, folding arms, 780 mm diagonal wheelbase, 4.2 kg take-off weight (max 6.4 kg) [1][3] | Fixed-wing VTOL survey drone with 2.1 m wingspan, 1.2 m length, EPO foam with carbon composite spar, 7.8 kg take-off weight (max 9.5 kg) [4][5] |
+| Intended Application | Field inspection of power lines, pipelines, and wind turbines for utility companies and infrastructure inspection contractors [1] | Large-area mapping, agriculture, and mining surveys for surveyors mapping up to 1,000 hectares in a single flight [5] |
+| Launch / Assembly Time | Designed to launch within two minutes of arriving on site [1] | Can be assembled in under 5 minutes without tools [4] |
+| Battery Swap Capability | Hot-swappable smart batteries taking under 30 seconds without powering down flight computer [3] | Not hot-swappable; aircraft must be powered off before changing the battery [4] |
+| Warranty Coverage | 12-month limited warranty for manufacturing defects; batteries covered for 6 months or 150 cycles [2] | 24-month limited warranty for manufacturing defects; batteries covered for 12 months or 300 cycles [7] |
+| Accidental Damage Protection | Skylark Care Plus covers up to two accidental-damage replacements per year for 890 USD annually [2] | Skylark Care Plus covers one accidental-damage replacement per year for 1,250 USD annually [7] |
+
+### Key Differences
+* **Aircraft Type and Structure:** The Aurora X1 is a quadcopter featuring a carbon-fibre monocoque and folding arms [1][3], while the Borealis S2 is a fixed-wing VTOL made of EPO foam and a carbon composite spar [4][5].
+* **Intended Use Cases:** The X1 targets utility and infrastructure inspection crews for power lines, pipelines, and wind turbines [1]; the S2 targets surveyors for large-area mapping, agriculture, and mining up to 1,000 hectares [5].
+* **Battery Swapping:** The X1 features hot-swappable batteries that can be changed in under 30 seconds without powering down [3], whereas the S2 requires the aircraft to be powered off to change the battery [4].
+* **Warranty and Protection Plans:** The X1 has a 12-month warranty (batteries 6 months/150 cycles) and an optional 890 USD/year protection plan covering two replacements [2]. The S2 has a 24-month warranty (batteries 12 months/300 cycles) and a 1,250 USD/year protection plan covering one replacement [7].
+
+### Key Similarities
+* **Optional Protection Plans:** Both drones offer optional Skylark Care Plus accidental-damage coverage plans [2][7].
+* **Battery Specifications Mentioned:** Both technical documents detail specific battery metrics such as chemistry, capacity, nominal voltage, energy, charge times, rated cycles, and battery weight [3][4].",1.0,1.0,0.7,1.0,1.0,1.0,,10041.5327999508,0.0027597999999999998,4,0,0,,
+hybrid_rerank,q032,comparison,True,compare_documents,False,"The Aurora X1 Field Drone has a lighter battery weight of 1.9 kg compared to the Borealis S2 Survey Drone's battery weight of 2.6 kg [1][4].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Battery weight | 1.9 kg [1] | 2.6 kg [4] |
+
+### Key Differences
+* The Aurora X1 battery weighs 1.9 kg [1], whereas the Borealis S2 battery weighs 2.6 kg [4].
+* The Aurora X1 uses hot-swappable smart batteries that can be changed without powering down the flight computer [1], while the Borealis S2 battery is not hot-swappable and requires the aircraft to be powered off before changing [4].
+
+### Key Similarities
+* Both drones specify their battery weight in kilograms within their respective technical hardware specifications [1][4].",1.0,1.0,0.75,1.0,1.0,1.0,,8637.062599998899,0.0013059,4,0,0,,
+hybrid_rerank,q033,comparison,True,compare_documents,False,"The Aurora X1 Field Drone has a maximum horizontal speed of 72 km/h [1], whereas the Borealis S2 Survey Drone achieves a maximum horizontal speed of 90 km/h [6].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Maximum horizontal speed | 72 km/h [1] | 90 km/h [6] |
+| Maximum flight time | 46 minutes (no payload); 38 minutes with 2 kg payload [1] | 95 minutes [6] |
+| Maximum range (line of sight) | 12 km [1] | 18 km [6] |
+| Service ceiling | 5,000 m above sea level [1] | 4,500 m above sea level [6] |
+| Operating temperature | -20 to 50 degrees Celsius [1] | -10 to 45 degrees Celsius [6] |
+| Ingress protection | IP55 [1] | IP43 [6] |
+| Take-off weight | 4.2 kg (with one battery, no payload) [3] | 7.8 kg [7] |
+| Maximum take-off weight | 6.4 kg [3] | 9.5 kg [7] |
+| Battery chemistry | Lithium-ion (21700 cells) [3] | Semi-solid-state lithium-ion [7] |
+| Battery capacity | 12,000 mAh [3] | 22,000 mAh [7] |
+| Battery energy | 533 Wh [3] | 488 Wh [7] |
+| Battery weight | 1.9 kg [3] | 2.6 kg [7] |
+
+### Key Differences
+* **Maximum Horizontal Speed:** The Aurora X1 reaches up to 72 km/h [1], while the Borealis S2 reaches up to 90 km/h [6].
+* **Aircraft Design & Type:** The Aurora X1 is a rugged quadcopter designed for field inspections [2], whereas the Borealis S2 is a fixed-wing VTOL survey drone designed for mapping, agriculture, and mining [5].
+* **Performance Metrics:** The Aurora X1 has a shorter maximum flight time (46 minutes vs. 95 minutes) [1][6], a lower line-of-sight range (12 km vs. 18 km) [1][6], a higher service ceiling (5,000 m vs. 4,500 m) [1][6], a broader operating temperature range (-20 to 50°C vs. -10 to 45°C) [1][6], and higher ingress protection (IP55 vs. IP43) [1][6].
+* **Battery System:** The Aurora X1 features hot-swappable batteries (12,000 mAh, 44.4 V, 533 Wh, 1.9 kg) [3], whereas the Borealis S2 battery is not hot-swappable and requires powering off the aircraft (22,000 mAh, 22.2 V, 488 Wh, 2.6 kg) [7].
+
+### Key Similarities
+* Both drones specify their maximum wind resistance, though with different values (12 m/s for the X1 [1] and 10 m/s for the S2 [6]).
+* Both aircraft utilize carbon materials in their construction (carbon-fibre monocoque for the X1 [3]; carbon composite spar for the S2 [7]).",1.0,1.0,0.6666666666666666,1.0,1.0,1.0,,13255.39960002061,0.0029433000000000003,4,0,0,,
+hybrid_rerank,q034,comparison,True,compare_documents,False,"The Aurora X1 Field Drone supports a payload capacity of up to 2.2 kg using the Skylark QuickLock interface [2], whereas the Borealis S2 Survey Drone has a payload capacity of 1.2 kg [7].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Payload capacity | Up to 2.2 kg [2] | 1.2 kg [7] |
+
+### Key Differences
+* **Payload Capacity:** The Aurora X1 supports payloads up to 2.2 kg [2], while the Borealis S2 supports up to 1.2 kg [7].
+* **Payload Mounting & Options:** The Aurora X1 uses the Skylark QuickLock interface with a standard Skylark VZ-20 gimbal camera and an optional TH-640 thermal module [2]. The Borealis S2 includes the standard MP-45 mapping camera and an optional LX-1 LiDAR module [7].
+
+### Key Similarities
+* **Optional Modules:** Both drones offer optional advanced payloads (a thermal module for the Aurora X1 and a LiDAR module for the Borealis S2) alongside their standard camera payloads [2][7].",1.0,0.5,0.39285714285714285,1.0,1.0,1.0,,11803.569299983792,0.0015838999999999998,4,0,0,,
+hybrid_rerank,q035,unanswerable,False,doc_qa,True,I couldn't find this in your documents.,,,,,,,,9119.361499906518,0.0003683,2,0,0,,
+hybrid_rerank,q036,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain pricing and warranty details for the Aurora X1 kit, batteries, and Skylark Care Plus accidental-damage coverage [2][3].",,,,,,,,9636.691799969412,0.0007065000000000001,3,0,0,,
+hybrid_rerank,q037,unanswerable,False,doc_qa,True,I couldn't find this in your documents.,,,,,,,,6665.365000022575,0.0003716,2,0,0,,
+hybrid_rerank,q038,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. 
+
+The documents do mention that international shipping to Canada, the European Union, and India takes 7 to 12 business days [1].",,,,,,,,15443.497900036164,0.0016094,3,0,0,,
+hybrid_rerank,q039,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information on overall financial highlights, units shipped, revenue, and pricing for the Borealis S2 product line, but not its net profit margin [1][2][3].",,,,,,,,10981.71680001542,0.001901,3,0,0,,
+hybrid_rerank,q040,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The provided passages contain financial highlights, executive summaries, and operational updates for Skylark Dynamics in Q2 2026, but they do not mention any regional sales teams or their leaders.",,,,,,,,9844.70080002211,0.0007035000000000001,3,0,0,,
+hybrid_rerank,q041,unanswerable,False,doc_qa,True,I couldn't find this in your documents.,,,,,,,,7859.608000027947,0.0003523,2,0,0,,
+hybrid_rerank,q042,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain related information about the Borealis S2's overview, pricing, warranty terms, and the launch of its LiDAR kit [1][2][3][4].",,,,,,,,10329.231500043534,0.0016248999999999999,3,0,0,,
+hybrid_rerank,q043,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain other specifications about the Borealis S2's battery system, airframe dimensions, weight, and warranty.",0.0,0.0,0.0,0.0,,0.0,,15328.206499994849,0.0007358,3,0,0,,
+hybrid_rerank,q044,paraphrase,True,doc_qa,False,"No, you cannot take Aurora X1 batteries on a passenger plane [1]. 
+
+Each Aurora X1 battery holds 533 Wh, which exceeds the 160 Wh limit allowed by airlines for passengers [1]. Because of this, they cannot be carried on or checked in on passenger flights, and you must use ground shipping to move them between sites [1].",1.0,1.0,0.75,1.0,1.0,1.0,,16247.063499991782,0.0012461999999999998,3,0,0,,
+hybrid_rerank,q045,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about the Aurora X1's intended use cases, target customers, kit contents, and weather resistance [1].",0.0,0.0,0.0,0.0,,0.0,,14310.524499989697,0.0005971,3,0,0,,
+hybrid_rerank,q046,paraphrase,True,doc_qa,False,"If the control link is lost for more than 5 seconds, the Borealis S2 automatically triggers a return-to-home action [1].",1.0,1.0,1.0,1.0,1.0,1.0,,15658.458999998402,0.0005916999999999999,3,0,0,,
+hybrid_rerank,q047,paraphrase,True,doc_qa,True,I couldn't find this in your documents.,0.0,0.0,0.0,0.0,,0.0,,10594.405700001516,0.00035659999999999994,2,0,0,,
+hybrid_rerank,q048,paraphrase,True,doc_qa,True,I couldn't find this in your documents.,0.0,0.0,0.0,0.0,,0.0,,10839.148899991415,0.00035329999999999997,2,0,0,,
+hybrid_rerank,q049,paraphrase,True,doc_qa,False,"Tuesdays and Thursdays are designated as anchor days for all teams at the Denver headquarters, meaning employees working the default hybrid schedule must be in the office at least 2 days per week [1]. 
+
+Teams may also agree upon a third office day, though this additional day cannot be made mandatory for the entire team unless it receives approval from the department head [1].",1.0,1.0,1.0,1.0,1.0,1.0,,15113.529900001595,0.0007153999999999999,3,0,0,,
+hybrid_rerank,q050,paraphrase,True,doc_qa,False,Skylark Dynamics built fewer Aurora X1 drones in April because motor supplier Voltra Motion delayed its shipments by five weeks [1][2]. This motor supply constraint was subsequently resolved when the team qualified a second supplier in May [1][2].,1.0,1.0,1.0,1.0,1.0,1.0,,20133.733700000448,0.0007122999999999999,3,0,0,,
+hybrid_rerank,q051,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about the Aurora X1's intended uses, target customers, weather conditions it can handle (light rain and gusty wind), and what is included in the sales kit [1].",0.0,0.0,0.0,0.0,,0.0,,14170.000199999777,0.0006318999999999999,3,0,0,,
+hybrid_rerank,q052,paraphrase,True,doc_qa,True,I couldn't find this in your documents.,0.0,0.0,0.0,0.0,,0.0,,12601.606800002628,0.0003758,2,0,0,,
+hybrid_rerank,q053,identifier,True,doc_qa,False,"The TH-640 is an optional thermal module and the most popular accessory for the Aurora X1, attached to 38% of Aurora X1 kits sold in the quarter [1]. 
+
+It adds a 640 x 512 radiometric thermal sensor designed for detecting hotspots on electrical equipment [2].",1.0,0.5,0.5,1.0,1.0,1.0,,14810.405700001866,0.0007134,3,0,0,,
+hybrid_rerank,q054,identifier,True,doc_qa,False,"The LX-1 LiDAR module captures 240,000 points per second [1].",1.0,1.0,1.0,1.0,1.0,1.0,,14114.074700002675,0.0005429,3,0,0,,
+hybrid_rerank,q055,identifier,True,doc_qa,True,I couldn't find this in your documents. The passages do contain information about the publisher and the document type for SKD-PS-BS2 [1].,1.0,1.0,1.0,1.0,,0.0,,13463.124600006267,0.0005618999999999999,3,0,0,,
+hybrid_rerank,q056,identifier,True,doc_qa,False,GlobalConnect is used as the company VPN to connect to internal systems [1]. It is also required to be enabled whenever public Wi-Fi is used [1].,1.0,1.0,1.0,1.0,1.0,1.0,,16443.156499997713,0.0005467,3,0,0,,
+hybrid_rerank,q057,identifier,True,doc_qa,False,"Based on your documents, PeopleHub is used for two main purposes:
+
+* **Remote Work Requests:** You must submit the Remote Work Request form in PeopleHub when requesting a change to your work arrangement [1].
+* **Expense Submissions:** You must submit travel expenses in PeopleHub within 30 days of a trip [2].",1.0,1.0,1.0,1.0,1.0,1.0,,14567.791199995554,0.0006644,3,0,0,,
+hybrid_rerank,q058,identifier,True,doc_qa,False,The Skylark VZ-20 gimbal camera features a 20-megapixel 1-inch sensor [1].,1.0,1.0,1.0,1.0,1.0,1.0,,17512.458199998946,0.0005964,3,1,0,,
+hybrid_rerank,q059,keyword,True,doc_qa,False,"The Borealis LiDAR kit costs 31,500 USD [1][2]. This kit includes the addition of the LX-1 module and a second battery [1].",1.0,1.0,1.0,1.0,1.0,1.0,,18538.90759999922,0.0013770000000000002,3,0,0,,
+hybrid_rerank,q060,keyword,True,doc_qa,False,"Batteries should be stored at a temperature between 15 and 25 degrees Celsius [1][2]. For storage lasting longer than three months, it is specifically noted to keep them within this same 15 to 25 degrees Celsius range [2]. Additionally, they should be kept in a dry place at a 40 to 60% charge [1].",1.0,1.0,1.0,1.0,1.0,1.0,,19184.289900003932,0.0007652,3,0,0,,
+hybrid_rerank,q061,keyword,True,doc_qa,False,The Q2 gross margin for Skylark Dynamics improved to 41.5% as the Borealis S2 moved to higher-volume production [1].,1.0,1.0,1.0,0.5,1.0,1.0,,16416.68949999439,0.0005805,3,0,0,,
+full,q001,fact,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain an overview of the Aurora X1 quadcopter, including its intended use, target customers, and what is included in the sales kit [1].",0.0,0.0,0.0,0.0,,0.0,,22399.95029999409,0.0013528,8,0,0,,
+full,q002,fact,True,doc_qa,False,"The Aurora X1 replaces the Aurora X0, which was discontinued in 2024 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,30337.35579997301,0.0026871,12,0,0,,
+full,q003,table,True,doc_qa,False,"The capacity of the Aurora X1 battery is 12,000 mAh, with an energy of 533 Wh [1].",1.0,1.0,1.0,1.0,1.0,1.0,,12234.235299983993,0.0016762,6,0,0,,
+full,q004,numeric,True,doc_qa,False,The payload mount on the aircraft supports payloads of up to 2.2 kg [1].,1.0,1.0,1.0,1.0,1.0,1.0,,24953.64320000226,0.0022648,8,0,0,,
+full,q005,numeric,True,doc_qa,False,The Aurora X1 automatically returns home when the control link is lost for more than 3 seconds [1].,1.0,1.0,1.0,1.0,1.0,1.0,,19005.02379995305,0.0012147,6,0,0,,
+full,q006,table,True,doc_qa,False,"You need to get a full service for the Aurora X1 drone at an authorised Skylark service centre every 12 months [1]. Following the maintenance schedule, including this full service, is a condition of the warranty [1].",1.0,1.0,1.0,1.0,1.0,1.0,,15118.756300071254,0.0012781,6,1,0,,
+full,q007,numeric,True,doc_qa,False,"The Borealis S2 is designed to map up to 1,000 hectares in a single flight [1].",1.0,1.0,1.0,1.0,1.0,1.0,,15596.309300046414,0.0011727999999999999,6,2,0,,
+full,q008,numeric,True,doc_qa,False,The Borealis S2 airframe has a wingspan of 2.1 m [1].,1.0,1.0,1.0,1.0,1.0,1.0,,12061.23580003623,0.0013245,6,0,0,,
+full,q009,table,True,doc_qa,False,The maximum flight time for the Borealis S2 survey drone is 95 minutes [1].,1.0,1.0,1.0,1.0,1.0,1.0,,25987.72829999507,0.0015153999999999999,6,4,0,,
+full,q010,numeric,True,doc_qa,False,The default altitude ceiling for the Borealis S2 geofencing feature is 120 m [1].,1.0,1.0,1.0,1.0,1.0,1.0,,24280.03460005857,0.0011468999999999997,6,0,0,,
+full,q011,table,True,doc_qa,False,You should replace the cruise motor on the Borealis S2 survey drone every 300 flight hours [1].,1.0,1.0,1.0,1.0,1.0,1.0,,25130.335099995136,0.0011653,6,0,0,,
+full,q012,numeric,True,doc_qa,False,"The batteries on the Borealis S2 are covered for 12 months or 300 cycles, whichever comes first [1]. This is part of the 24-month limited warranty that the Borealis S2 carries for manufacturing defects [1].",1.0,1.0,1.0,1.0,1.0,1.0,,95190.36590005271,0.0013755,6,0,0,,
+full,q013,numeric,True,doc_qa,False,Standard delivery within the United States takes 3 to 5 business days [1].,1.0,1.0,1.0,1.0,1.0,1.0,,15082.449599984102,0.001102,6,0,0,,
+full,q014,numeric,True,doc_qa,False,"The restocking fee for returned opened items is 15%, provided they are returned within 30 days of delivery and have not been flown for more than 2 hours [1].",1.0,1.0,1.0,1.0,1.0,1.0,,12917.00400004629,0.0010745,6,0,0,,
+full,q015,fact,True,doc_qa,False,"As of August 2026, the latest firmware version for the Aurora X1 is version 4.2.1 [1].",1.0,1.0,1.0,1.0,1.0,1.0,,19512.78020000609,0.0012988,6,0,0,,
+full,q016,numeric,True,doc_qa,False,One Aurora X1 battery stores 533 Wh of energy [1][2].,1.0,1.0,1.0,1.0,1.0,1.0,,15213.195399963297,0.0017235000000000002,6,1,0,,
+full,q017,numeric,True,doc_qa,False,"Standard repairs take 7 to 10 business days at the Denver service centre, not including shipping time [1].",1.0,1.0,1.0,1.0,1.0,1.0,,77254.29209996946,0.001049,6,1,0,,
+full,q018,fact,True,doc_qa,False,Phone and chat support at Skylark Dynamics is available Monday to Friday from 07:00 to 19:00 Mountain Time [1].,1.0,1.0,1.0,1.0,1.0,1.0,,12373.707599937916,0.0010082999999999997,6,0,0,,
+full,q019,fact,True,doc_qa,False,The Skylark Dynamics board meeting for the Q2 2026 business review is scheduled for 21 July 2026 [1].,1.0,1.0,1.0,1.0,1.0,1.0,,47350.05370003637,0.0018633999999999999,9,0,0,,
+full,q020,numeric,True,doc_qa,False,The total revenue for Skylark Dynamics in the second quarter of 2026 was 48.6 million USD [1][2]. This represents a 22% increase from the 39.8 million USD reported in the second quarter of 2025 [1][2].,1.0,1.0,1.0,1.0,1.0,1.0,,14548.712999909185,0.0014647999999999998,6,0,0,,
+full,q021,table,True,doc_qa,False,"A total of 1,420 units of the Aurora X1 were shipped [2].",1.0,0.5,0.5,1.0,1.0,1.0,,27326.76770002581,0.0022748,8,0,0,,
+full,q022,numeric,True,doc_qa,False,Europe grew the fastest year over year at 31% [1]. This growth followed the Borealis S2 receiving its EU class C2 certification in March [1].,1.0,1.0,1.0,1.0,1.0,1.0,,23682.616899954155,0.0013524000000000001,6,1,0,,
+full,q023,numeric,True,doc_qa,False,"At the end of June 2026, the average order fulfilment time for Skylark Dynamics fell to 4 days [1]. This was an improvement from the 9-day fulfilment time recorded at the end of April, following the resolution of a motor supply constraint in May [1][2].",1.0,1.0,1.0,1.0,1.0,1.0,,14808.063099975698,0.0013598,6,0,0,,
+full,q024,numeric,True,doc_qa,False,The revenue guidance for Q3 2026 is 51 to 54 million USD [1].,1.0,1.0,1.0,1.0,1.0,1.0,,34734.81079994235,0.0017706999999999998,8,0,0,,
+full,q025,fact,True,doc_qa,False,"The main goal of the Skylark Dynamics Remote Work Policy is to provide teams with flexibility while simultaneously protecting the in-person collaboration that hardware development depends on [1]. 
+
+To achieve this, the policy outlines:
+* Who is eligible to work remotely [1].
+* How hybrid and fully remote arrangements function [1].
+* The equipment and allowances provided by the company [1].
+* The security rules that apply when working outside the office [1].",1.0,1.0,1.0,1.0,1.0,1.0,,15205.048199975863,0.0014455000000000002,6,0,0,,
+full,q026,numeric,True,doc_qa,False,Lab engineers are eligible for up to 1 remote day per week [1].,1.0,1.0,1.0,1.0,1.0,1.0,,16194.644799994421,0.0022803999999999997,8,0,0,,
+full,q027,numeric,True,doc_qa,False,"Under the default hybrid schedule, employees work at least 2 days per week in the office [1].",1.0,1.0,1.0,1.0,1.0,1.0,,23031.985699897632,0.0012381999999999998,6,0,0,,
+full,q028,table,True,doc_qa,False,The monthly internet allowance for remote employees is 50 USD [1]. This stipend is paid in local currency at the exchange rate on the first working day of the month through the regular payroll [1].,1.0,1.0,1.0,1.0,1.0,1.0,,16643.696200102568,0.0020682,8,0,0,,
+full,q029,numeric,True,doc_qa,False,The deadline for reporting a lost or stolen device to security@skylark-dynamics.example is within 1 hour [2].,1.0,0.5,0.5,1.0,1.0,1.0,,21766.069300007075,0.0011013,6,0,0,,
+full,q030,numeric,True,doc_qa,False,"Fully remote employees traveling to headquarters are reimbursed for hotel costs of up to 180 USD per night [1]. This applies to up to 4 trips per year, which also include economy airfare [1].",1.0,1.0,1.0,1.0,1.0,1.0,,14355.373599915765,0.0014432999999999998,6,0,0,,
+full,q031,comparison,True,compare_documents,False,"The Aurora X1 is a rugged quadcopter designed for field inspection of infrastructure like power lines, pipelines, and wind turbines [1], whereas the Borealis S2 is a fixed-wing VTOL survey drone built for large-area mapping, agriculture, and mining surveys [5].
+
+| Attribute | Aurora X1 Field Drone Technical Specification | Borealis S2 Survey Drone Product Sheet |
+|---|---|---|
+| Primary Design | Rugged quadcopter with carbon-fibre monocoque, folding arms, 780 mm diagonal wheelbase, 4.2 kg take-off weight (6.4 kg max), and 1.9 kg battery [1][2]. | Fixed-wing VTOL survey drone with 2.1 m wingspan, 1.2 m length, EPO foam with carbon composite spar, 7.8 kg take-off weight (9.5 kg max), and 2.6 kg battery [4][5]. |
+| Intended Application | Field inspection of power lines, pipelines, and wind turbines for utility companies and infrastructure inspection contractors [1]. | Large-area mapping, agriculture, and mining surveys for surveyors mapping up to 1,000 hectares in a single flight [5]. |
+
+### Key Differences
+* **Primary Design:** The Aurora X1 is a quadcopter with folding arms and a 780 mm diagonal wheelbase [1][2], while the Borealis S2 is a fixed-wing VTOL aircraft with a 2.1 m wingspan and 1.2 m length that takes off vertically before transitioning to fixed-wing flight [4][5].
+* **Intended Applications:** The X1 targets utility companies and infrastructure inspection contractors for inspecting power lines, pipelines, and wind turbines [1]; the S2 targets surveyors for large-area mapping, agriculture, and mining surveys up to 1,000 hectares in a single flight [5].
+* **Weight Specifications:** The X1 has a take-off weight of 4.2 kg (max 6.4 kg) and a 1.9 kg battery [2], whereas the S2 has a take-off weight of 7.8 kg (max 9.5 kg) and a 2.6 kg battery [4].
+* **Airframe Materials:** The X1 uses a carbon-fibre monocoque [2], while the S2 uses EPO foam reinforced with a carbon composite spar [4].
+
+### Key Similarities
+* **Battery Technology:** Both drones utilize lithium-ion battery variants (the X1 uses standard Lithium-ion 21700 cells [2], and the S2 uses semi-solid-state lithium-ion [4]).
+* **Protection Plans:** Both aircraft offer optional accidental-damage protection plans under the name Skylark Care Plus [3][7].",1.0,1.0,0.7,1.0,1.0,1.0,,73455.92930004932,0.0033708,7,0,0,,
+full,q032,comparison,True,compare_documents,False,"The Aurora X1 Field Drone has a lighter battery weight of 1.9 kg compared to the Borealis S2 Survey Drone's battery weight of 2.6 kg [2][4].
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Battery weight | 1.9 kg [2] | 2.6 kg [4] |
+| Battery chemistry | Lithium-ion (21700 cells) [2] | Semi-solid-state lithium-ion [4] |
+| Battery capacity | 12,000 mAh [2] | 22,000 mAh [4] |
+| Battery energy | 533 Wh [2] | 488 Wh [4] |
+| Hot-swappable | Yes (takes under 30 seconds without powering down) [2] | No (aircraft must be powered off) [4] |
+
+### Key Differences
+* **Weight:** The Aurora X1 battery weighs 1.9 kg [2], whereas the Borealis S2 battery weighs 2.6 kg [4].
+* **Swap capability:** The Aurora X1 features hot-swappable batteries that can be changed in under 30 seconds without powering down the flight computer [2], while the Borealis S2 requires the aircraft to be powered off before changing the battery [4].
+* **Chemistry and Capacity:** The Aurora X1 uses 21700 lithium-ion cells with a 12,000 mAh capacity (533 Wh) [2], compared to the Borealis S2 which uses semi-solid-state lithium-ion with a 22,000 mAh capacity (488 Wh) [4].
+
+### Similarities
+* Both drones use lithium-ion based battery technology to power their respective aircraft systems [2][4].",1.0,0.5,0.5,1.0,1.0,1.0,,15371.620399993844,0.0026792,7,0,0,,
+full,q033,comparison,True,compare_documents,False,"The Borealis S2 Survey Drone has a higher maximum horizontal speed of 90 km/h compared to the Aurora X1 Field Drone's maximum horizontal speed of 72 km/h.
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Maximum horizontal speed | 72 km/h [1] | 90 km/h [5] |
+
+### Key Differences
+* **Maximum horizontal speed:** The Aurora X1 reaches a maximum horizontal speed of 72 km/h [1], whereas the Borealis S2 reaches 90 km/h [5].
+
+### Key Similarities
+* **Speed metrics:** Both drones specify maximum horizontal speed performance metrics in their technical documentation [1][5].",1.0,1.0,0.7,1.0,1.0,1.0,,31280.31440009363,0.0019581,7,0,0,,
+full,q034,comparison,True,compare_documents,False,"The Aurora X1 Field Drone supports a maximum payload capacity of up to 2.2 kg using the Skylark QuickLock interface, whereas the Borealis S2 Survey Drone has a payload capacity of 1.2 kg.
+
+| Attribute | Aurora X1 Field Drone | Borealis S2 Survey Drone |
+|---|---|---|
+| Payload capacity | Up to 2.2 kg [3] | 1.2 kg [7] |
+| Standard payload | Skylark VZ-20 gimbal camera (20-megapixel 1-inch sensor with 12x hybrid zoom) [3] | MP-45 mapping camera (45-megapixel full-frame camera with a mechanical shutter) [7] |
+| Optional payloads | TH-640 thermal module (640 x 512 radiometric thermal sensor) and optional RTK-2 module [3] | LX-1 LiDAR module (captures 240,000 points per second with 1.5 cm vertical accuracy) [7] |
+
+### Key Differences
+* **Payload Capacity:** The Aurora X1 supports payloads of up to 2.2 kg [3], while the Borealis S2 supports up to 1.2 kg [7].
+* **Standard and Optional Payloads:** The Aurora X1 comes with the Skylark VZ-20 gimbal camera and offers an optional TH-640 thermal module and RTK-2 module [3]. The Borealis S2 comes with the MP-45 mapping camera and offers an optional LX-1 LiDAR module, with built-in RTK and PPK GNSS [7].
+* **Mounting Interface:** The Aurora X1 utilizes the Skylark QuickLock interface for its payload mount [3], whereas the Borealis S2 does not state its mounting mechanism.
+
+### Key Similarities
+* **Specialized Sensors:** Both drones offer specialized imaging payloads (such as thermal or LiDAR options) tailored to their respective professional applications [3][7].",1.0,0.3333333333333333,0.30952380952380953,1.0,1.0,1.0,,45355.336599983275,0.0027008999999999996,7,0,0,,
+full,q035,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The provided documents do contain operational details about the Aurora X1, including production impacts from motor supplier delays and improvements in order fulfilment times [1].",,,,,,,,36342.75589999743,0.0019399999999999999,8,0,0,,
+full,q036,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain pricing and warranty information for the Aurora X1 kit, batteries, and Skylark Care Plus accidental-damage coverage [2][3].",,,,,,,,21372.740399907343,0.0015896999999999999,8,0,0,,
+full,q037,unanswerable,False,doc_qa,True,I couldn't find this in your documents.,,,,,,,,17801.046299980953,0.0010659,7,0,0,,
+full,q038,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about international shipping times to Canada, the European Union, and India [1].",,,,,,,,21701.285899966024,0.0022738,8,0,0,,
+full,q039,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain information regarding the revenue, units shipped, and pricing for the Borealis S2 product line [3].",,,,,,,,32026.77500003483,0.0034497,11,0,0,,
+full,q040,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The passages do contain financial highlights and operational updates for Skylark Dynamics in Q2 2026, such as revenue growth, operating income, and the opening of an office in Bengaluru [1][2].",,,,,,,,21193.006800021976,0.0024231,8,0,0,,
+full,q041,unanswerable,False,doc_qa,True,I couldn't find this in your documents.,,,,,,,,16314.701700001024,0.0009753,7,0,0,,
+full,q042,unanswerable,False,doc_qa,True,"I couldn't find this in your documents. The provided passages do, however, contain details regarding the Borealis S2's overview, pricing, warranty coverage, and product updates [1][2][3][4][5].",,,,,,,,30313.27400007285,0.0032186999999999997,11,0,0,,
+full,q043,paraphrase,True,doc_qa,False,"The Borealis S2 survey drone has a maximum flight time of 95 minutes [4]. 
+
+Additionally, the aircraft is designed for mapping up to 1,000 hectares in a single flight [1].",1.0,0.25,0.25,1.0,1.0,1.0,,42636.269900001935,0.0054268,11,4,0,,
+full,q044,paraphrase,True,doc_qa,False,"No, you cannot take Aurora X1 batteries on a passenger plane [1]. 
+
+Each Aurora X1 battery holds 533 Wh, which exceeds the 160 Wh limit allowed by airlines for passengers [1]. Therefore, they cannot be carried on or checked in on passenger flights, and you must use ground shipping to move them between sites [1].",1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,15903.804899993702,0.0017653999999999999,6,0,0,,
+full,q045,paraphrase,True,doc_qa,False,"If the Aurora X1 loses its control link for more than 3 seconds, it automatically initiates a return-to-home [2].",1.0,0.5,0.5,1.0,1.0,1.0,,35441.90940000408,0.0015727,9,5,0,,
+full,q046,paraphrase,True,doc_qa,False,"If the control link is lost for more than 5 seconds, the Borealis S2 automatically executes a return-to-home [1].",1.0,1.0,1.0,1.0,1.0,1.0,,24363.765700007207,0.0019896999999999996,6,0,0,,
+full,q047,paraphrase,True,doc_qa,False,"Yes, you can get your money back for an unboxed drone, provided it meets specific conditions [1]. 
+
+* **Timeframe:** It must be returned within 30 days of delivery [1].
+* **Condition:** Opened products can be returned as long as they have not been flown for more than 2 hours [1].
+* **Fees:** A 15% restocking fee applies to opened products [1].
+* **Refund Details:** Refunds are issued to the original payment method within 10 business days after the returned item passes inspection [1].",1.0,1.0,1.0,1.0,1.0,1.0,,38047.46400000295,0.0015445,9,3,0,,
+full,q048,paraphrase,True,doc_qa,True,"I couldn't find this in your documents. The passages do contain information about equipment and stipends, including reimbursement amounts for ergonomic chairs and other home office expenses [1].",1.0,1.0,1.0,1.0,,0.0,,35129.55630000215,0.0016113999999999998,10,0,0,,
+full,q049,paraphrase,True,doc_qa,False,"You are expected to be in the Denver office at least 2 days per week under the default hybrid schedule [1]. Specifically, Tuesdays and Thursdays are designated as anchor days for all teams at the Denver headquarters [1]. Teams may also agree upon a third office day, though a third day cannot be made mandatory for the entire team without approval from the department head [1].",1.0,1.0,1.0,1.0,1.0,1.0,,13084.750499998336,0.0012341,6,0,0,,
+full,q050,paraphrase,True,doc_qa,False,The company built fewer Aurora X1 drones in April because motor supplier Voltra Motion delayed shipments by five weeks [1]. This motor supply constraint slowed Aurora X1 deliveries before being resolved in May when a second motor supplier was qualified [1][3].,1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,35633.66639999731,0.0013181,6,5,0,,
+full,q051,paraphrase,True,doc_qa,False,The operating temperature for the Aurora X1 ranges down to -20 degrees Celsius [2].,1.0,0.5,0.5,1.0,1.0,1.0,,46612.188900006004,0.0020353999999999997,9,0,0,,
+full,q052,paraphrase,True,doc_qa,True,I couldn't find this in your documents.,0.0,0.0,0.0,0.0,,0.0,,36051.75560001226,0.0010466,7,0,0,,
+full,q053,identifier,True,doc_qa,False,"The TH-640 is an optional thermal module for the Aurora X1 that adds a 640 x 512 radiometric thermal sensor used for detecting hotspots on electrical equipment [1]. It became the most popular accessory for the Aurora X1, being attached to 38% of the kits sold in the quarter [2].",1.0,1.0,1.0,1.0,1.0,1.0,,14170.758300009766,0.0013264,6,0,0,,
+full,q054,identifier,True,doc_qa,False,"The LX-1 LiDAR module captures 240,000 points per second [1].",1.0,1.0,1.0,1.0,1.0,1.0,,16656.920599998557,0.0009724,6,0,0,,
+full,q055,identifier,True,doc_qa,True,I couldn't find this in your documents. The passages do contain information about the publisher and the document type for SKD-PS-BS2 [1].,1.0,1.0,1.0,1.0,,0.0,,40514.51860000088,0.0012289999999999998,8,0,0,,
+full,q056,identifier,True,doc_qa,False,GlobalConnect is the company VPN used to connect to internal systems [1]. It must also be enabled whenever employees use public Wi-Fi [1].,1.0,1.0,1.0,1.0,1.0,1.0,,22250.568899995415,0.000983,6,0,0,,
+full,q057,identifier,True,doc_qa,False,"PeopleHub is used for the following tasks related to remote work:
+
+* **Submitting requests:** You must submit the Remote Work Request form in PeopleHub when requesting a change to your remote work arrangement [1].
+* **Submitting expenses:** Fully remote employees must submit their travel expenses in PeopleHub within 30 days of a trip [2].",1.0,1.0,1.0,1.0,1.0,1.0,,37519.80160000676,0.0018543000000000003,12,4,0,,
+full,q058,identifier,True,doc_qa,False,The VZ-20 camera has a 20-megapixel 1-inch sensor [1].,1.0,1.0,1.0,1.0,1.0,1.0,,19331.084400007967,0.0010949999999999998,6,0,0,,
+full,q059,keyword,True,doc_qa,False,"The Borealis S2 LiDAR kit costs 31,500 USD [1][3].",1.0,1.0,0.8333333333333333,1.0,1.0,1.0,,21923.8222999993,0.0014214999999999998,6,4,0,,
+full,q060,keyword,True,doc_qa,False,Batteries should be stored between 15 and 25 degrees Celsius [1][2].,1.0,1.0,1.0,1.0,1.0,1.0,,16515.430300001753,0.0021062999999999998,8,0,0,,
+full,q061,keyword,True,doc_qa,False,"The Q2 gross margin was 38.9% in Q2 2025 and increased to 41.5% in Q2 2026, representing a change of +2.6 pts [1].",1.0,1.0,1.0,1.0,1.0,1.0,,44501.9983999955,0.0010731,6,6,0,,
