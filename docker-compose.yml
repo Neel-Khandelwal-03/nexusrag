@@ -1,0 +1,35 @@
+# Local Docker run:  docker compose up --build
+# The index (Chroma + SQLite), chat history and the reranker's model cache live in the
+# named volume, so they survive rebuilds.
+
+services:
+  nexusrag:
+    build:
+      context: .
+      args:
+        # true adds torch + sentence-transformers for the local cross-encoder; set
+        # RERANKER_BACKEND=cross_encoder below to use it.
+        INSTALL_RERANK: "false"
+    image: nexusrag:local
+    env_file: .env
+    environment:
+      PORT: "8000"
+      STORAGE_DIR: /data/storage
+      HF_HOME: /data/models
+      BOOTSTRAP_INDEX: "true"
+      # Chainlit needs its own host, and the browser talks to it on localhost.
+      CHAINLIT_HOST: 0.0.0.0
+    ports:
+      - "8000:8000"
+    volumes:
+      - nexusrag-data:/data
+    healthcheck:
+      test: ["CMD", "python", "/app/scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      start_period: 90s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  nexusrag-data:

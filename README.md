@@ -2,29 +2,75 @@
 
 > Advanced Retrieval-Augmented Generation chatbot: hybrid search, reranking, a self-correcting agent, inline citations and a measurable evaluation suite, built on **Chainlit + ChromaDB + Google Gemini**.
 
+[![CI](https://github.com/Neel-Khandelwal-03/nexusrag/actions/workflows/ci.yml/badge.svg?branch=staging)](https://github.com/Neel-Khandelwal-03/nexusrag/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 
-> **Status:** under active development. The live demo link, CI badge and full documentation arrive in later phases.
+**Live demo:** _deployed in the next phase; the link lands here._
 
 ## What this is
 
-NexusRAG goes beyond the naive *chunk → embed → retrieve → generate* loop. The retrieval and orchestration logic is written by hand, with no LangChain or LlamaIndex, so every step of the pipeline is visible and explainable.
+NexusRAG answers questions about your own documents and shows its work: every factual
+sentence cites the passage it came from, and when the documents don't cover a question it
+says so instead of guessing.
 
-Planned capabilities:
+It goes beyond the naive *chunk → embed → retrieve → generate* loop, and the retrieval and
+orchestration logic is written by hand, with no LangChain or LlamaIndex, so every step is
+visible, testable and explainable.
 
-- **Structure-aware, parent–child chunking.** Small chunks are searched and full sections are sent to the LLM.
-- **Hybrid retrieval.** Dense vectors (Gemini embeddings in ChromaDB) and BM25 are fused with Reciprocal Rank Fusion.
-- **Cross-encoder reranking** with `BAAI/bge-reranker-base`.
-- **Query transformation.** Follow-up condensation, multi-query expansion and optional HyDE.
-- **Self-correcting agent.** An intent router, a relevance grader with query rewrites, and a groundedness check.
-- **Grounded answers** with inline `[n]` citations that open the exact source chunk, or the PDF at the cited page.
-- **A transparent chat UI** that shows every pipeline step with its timing, alongside uploads, knowledge bases, modes and persistent history.
-- **Semantic cache** that reuses the answer to a near-duplicate question, cutting cost and
-  latency roughly tenfold, and never outlives the documents it cites.
-- **Evaluation suite** covering hit@k, MRR, context precision/recall, faithfulness, answer
-  relevance, refusal rate, latency and cost, comparing four pipeline configurations (see
-  [Evaluation](#evaluation)).
+```mermaid
+flowchart TB
+    subgraph ingest ["Ingestion (offline)"]
+        direction LR
+        F[PDF · DOCX · MD · TXT · URL] --> P[Parse: headings,<br/>tables, pages]
+        P --> C[Parent/child chunking<br/>~256-token children<br/>in ≤1,200-token sections]
+        C --> E[Embed changed chunks]
+        E --> S[(ChromaDB vectors<br/>SQLite: sections,<br/>BM25, registry)]
+    end
+
+    subgraph answer ["Answering one message"]
+        direction TB
+        Q[Question] --> R{Router}
+        R -->|chitchat / out of scope| SHORT[Short reply]
+        R -->|doc_qa · summarize · compare| CACHE{Semantic cache}
+        CACHE -->|hit| OUT
+        CACHE -->|miss| QT[Query transform:<br/>condense · multi-query · HyDE]
+        QT --> HY[Dense + BM25 search<br/>fused with RRF]
+        HY --> RR[Rerank<br/>cross-encoder or Gemini]
+        RR --> PE[Expand to parent sections<br/>within a token budget]
+        PE --> GR{Relevant?}
+        GR -->|no, retry| QT
+        GR -->|yes| GEN[Generate with citations]
+        GEN --> GC{Grounded?}
+        GC -->|no| GEN
+        GC -->|yes| OUT[Answer + sources]
+    end
+
+    S -.-> HY
+```
+
+### How each feature improves on naive RAG
+
+| Naive RAG | NexusRAG | Why it matters |
+|---|---|---|
+| Fixed-size chunks | Structure-aware parent/child chunks | Small chunks are searched; the whole section is read, so answers don't stop mid-table |
+| Dense search only | Dense + BM25 fused with RRF | Embeddings catch meaning, BM25 catches codes like `CH-400`; [the evaluation](#evaluation) shows where each wins |
+| Top-k by vector distance | Cross-encoder (or Gemini) reranking, fused with the first-stage order | Reading query and passage together beats comparing embeddings, and fusion stops one noisy score burying a good hit |
+| Question used verbatim | Follow-up condensation, multi-query, optional HyDE | "And its warranty?" becomes a searchable question; different phrasings find different passages |
+| One-shot retrieve → answer | Router, relevance grader with retries, groundedness check | Bad retrieval is caught and retried; unsupported answers are regenerated or declined |
+| Bare answer text | Inline `[n]` citations, source panels, PDF at the cited page | Every claim is checkable in one click |
+| Cache by exact string | Semantic cache with a version and settings fingerprint | Reuses answers to rephrased questions, and never outlives the documents it cites |
+| "Looks good to me" | Evaluation suite over a reviewed question set | Retrieval and answer quality are measured, not asserted |
+
+### Screenshots
+
+<!-- Replace these with real captures of the running app (drag the images into a GitHub
+     issue comment to host them, then paste the URLs here). -->
+
+| | |
+|---|---|
+| _Chat with citations and the pipeline steps_ | _Source panel with the matched passage_ |
+| _Upload progress and knowledge bases_ | _`/stats` and the settings panel_ |
 
 ## Local development
 
@@ -48,6 +94,41 @@ Run the quality gates. CI runs the same commands, with Gemini mocked:
 ```bash
 ruff check . && ruff format --check . && mypy && pytest
 ```
+
+### Running with Docker
+
+```bash
+cp .env.example .env          # set GEMINI_API_KEY (and AUTH_PASSWORD if you want a login)
+docker compose up --build     # http://localhost:8000
+```
+
+The image is slim, runs as a non-root user and keeps the index, chat history and model
+cache in a named volume, so they survive rebuilds. On first start the container indexes
+`data/` if the knowledge base is empty (`BOOTSTRAP_INDEX=false` turns that off).
+
+It ships with the **Gemini reranker**: the local cross-encoder needs torch and
+sentence-transformers (hundreds of megabytes) and about 8 s per query on 2 vCPUs, and the
+evaluation found it didn't improve answers on this corpus. To include it anyway:
+
+```bash
+docker build --build-arg INSTALL_RERANK=true -t nexusrag:rerank .
+docker run --rm -p 8000:8000 --env-file .env -e RERANKER_BACKEND=cross_encoder \
+  -v nexusrag-data:/data nexusrag:rerank
+```
+
+Without Compose:
+
+```bash
+docker build -t nexusrag .
+docker run --rm -p 8000:8000 --env-file .env -v nexusrag-data:/data nexusrag
+```
+
+| Path / variable | Purpose |
+|---|---|
+| `/data` (volume) | `STORAGE_DIR=/data/storage` (Chroma, SQLite, kept PDFs) and `HF_HOME=/data/models` |
+| `PORT` | Port Chainlit listens on (default 8000) |
+| `BOOTSTRAP_INDEX` | Index `data/` on start when the knowledge base is empty |
+| `scripts/healthcheck.py` | Used by the image's `HEALTHCHECK` and by Compose |
 
 ### Ingesting documents
 
@@ -294,6 +375,73 @@ graders:
 |---|---|---|
 | Hybrid + reranking | 87% → 91% | 15% → 9% |
 | Full | 96% → 100% | 8% → 4% |
+
+## Deployment
+
+Both environments run the same image; only secrets and the Space differ.
+
+| Environment | Branch | Space |
+|---|---|---|
+| Staging | `staging` | `nexusrag-staging` |
+| Production | `main` | `nexusrag` |
+
+**Hugging Face Spaces (primary).** Create a Docker Space, then in *Settings → Variables and
+secrets* add `GEMINI_API_KEY`, `AUTH_PASSWORD` and `CHAINLIT_AUTH_SECRET`
+(`chainlit create-secret`) as secrets, and `ENVIRONMENT`, `PORT=7860` and
+`STORAGE_DIR=/data/storage` as variables. Attach persistent storage so the index and chat
+history survive restarts. GitHub Actions pushes the repository to the Space on every merge
+into `staging` (staging) or `main` (production), and the Space rebuilds the image itself.
+
+**Google Cloud Run (alternative).** Build and push the image to Artifact Registry, then
+deploy with `--port 8000`, at least 2 GiB of memory and the same environment variables,
+with secrets from Secret Manager. Cloud Run's filesystem is ephemeral, so mount a
+persistent volume (Cloud Storage FUSE or Filestore) at `/data`, or accept that the index
+is rebuilt from `data/` on each cold start.
+
+In both cases the free Gemini tier allows only 20 requests a day per Flash model, which a
+public demo exhausts quickly; enable billing or point `GENERATION_MODEL` at a
+flash-lite model.
+
+## Design decisions and trade-offs
+
+- **No LangChain or LlamaIndex.** The whole pipeline is a few hundred lines of explicit
+  code: RRF, the agent state machine and the cache are all readable in one sitting, and
+  every stage is unit-tested with a fake Gemini. A framework would hide exactly the parts
+  this project is meant to show, and its abstractions tend to fight custom control flow.
+- **Parent/child chunking (≈256-token children inside ≤1,200-token sections).** Small
+  chunks make search precise; large ones make answers complete. Splitting the two lets
+  each do its job. The sizes come from the corpus: 256 tokens is about a paragraph, and
+  1,200 keeps a whole section (with its table) inside the context budget.
+- **Hybrid search, with an honest caveat.** BM25 earns its place on exact codes and rare
+  terms, but on this five-document corpus it *hurt* paraphrased questions, and the
+  evaluation says so plainly rather than assuming every technique helps.
+- **Reranking fused with the first-stage order, and a floor.** Pure reranking once buried
+  a table that both retrievers ranked first, so the two rankings are fused. A score
+  threshold trims the tail, but at least three passages always survive: an empty context
+  turns answerable questions into refusals.
+- **SQLite for everything except vectors.** The registry, sections, BM25 index and cache
+  share one file, so a document can be replaced (and its cached answers dropped) in a
+  single transaction. Chroma holds only the vectors.
+- **The agent is a hand-written state machine.** Each node returns the next node, so the
+  control flow sits in one readable place and every step can be shown in the UI with its
+  timing.
+- **Safety by default.** Answers cite passages or decline; graders fail open so a grader
+  outage can't block answers; logs never contain document text, questions or secrets.
+
+## Known limitations and future work
+
+- **Text only.** Images and diagrams in PDFs are ignored, and scanned documents need OCR
+  first. Multimodal retrieval (image and table embeddings) is the obvious next step.
+- **One machine, one process.** Chroma and SQLite are local files; horizontal scaling
+  would need a hosted vector store and Postgres.
+- **No entity or relationship graph.** Questions spanning many documents ("which products
+  share a supplier?") would benefit from GraphRAG-style structure.
+- **The cache is shared by everyone using an instance.** That suits a single-tenant demo;
+  multi-tenant use needs per-user scoping.
+- **Evaluation runs on a small corpus** (5 documents, 61 questions) with flash-lite as the
+  judge. Bigger corpora and a stronger judge would sharpen the conclusions.
+- **Reranking on CPU is slow** (~8 s per query on 2 vCPUs), which is why the Docker image
+  defaults to the Gemini reranker.
 
 ## Branching model
 
