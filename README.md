@@ -22,7 +22,9 @@ Planned capabilities:
 - **A transparent chat UI** that shows every pipeline step with its timing, alongside uploads, knowledge bases, modes and persistent history.
 - **Semantic cache** that reuses the answer to a near-duplicate question, cutting cost and
   latency roughly tenfold, and never outlives the documents it cites.
-- **Evaluation suite** covering hit@k, MRR, context precision/recall, faithfulness, answer relevance, refusal rate, latency and cost.
+- **Evaluation suite** covering hit@k, MRR, context precision/recall, faithfulness, answer
+  relevance, refusal rate, latency and cost, comparing four pipeline configurations (see
+  [Evaluation](#evaluation)).
 
 ## Local development
 
@@ -185,6 +187,113 @@ All model IDs are configured via environment variables (see [.env.example](.env.
 **Resilience.** Each call retries transient failures (429, 5xx and timeouts) up to 3 times with jittered backoff capped at 8 s. If the model is still overloaded, or returns "model not found", the call switches to `GENERATION_FALLBACK_MODEL` (`gemini-3.6-flash`) or `FAST_FALLBACK_MODEL` (`gemini-3.1-flash-lite`). An answer interrupted mid-stream is cleared and regenerated once on the fallback model. Embeddings never fall back, because another model's vectors wouldn't match the index.
 
 `gemini-embedding-2` has no `task_type` parameter. Queries are embedded as `task: search result | query: …` and documents as `title: … | text: …`, following Google's guidance for asymmetric retrieval. Temperature is left at the Gemini 3 default unless you set it explicitly.
+
+## Evaluation
+
+Everything above is measurable, so `eval/` measures it: a reviewed question set, metrics
+written by hand, and a runner that scores several pipeline configurations over the same
+questions.
+
+```bash
+python -m nexusrag.ingest data/ --collection eval     # the corpus the questions come from
+python -m eval.run_eval --collection eval             # the four configurations below
+python -m eval.run_eval --configs dense,full --limit 10   # a quick subset
+```
+
+Each run writes `eval/reports/<run>/`: `summary.md` (the tables below), `summary.csv`,
+`results.csv` (one row per question and configuration) and `results.jsonl`. Results are
+checkpointed as they arrive, so a run stopped by rate limits resumes with `--resume <run>`
+without paying for finished questions again.
+
+### The questions
+
+`eval/dataset.jsonl` holds 61 reviewed questions over the five sample documents: 53
+answerable and 8 the documents don't cover. Each answerable item records the reference
+answer, exact evidence quotes and the source sections and chunks they come from.
+
+`python -m eval.generate_dataset` drafts questions from sampled sections with Gemini,
+checks every quote against the text and verifies the unanswerable ones (retrieval plus the
+relevance grader must agree the documents can't answer them). Everything is then reviewed
+by hand.
+
+Those generated questions turned out to be too easy: they echo the wording of the section
+they were written from, and every configuration scored ~100%. So the set also contains 19
+hand-written questions in the phrasing real users actually type:
+
+| Type | Example | What it stresses |
+|---|---|---|
+| paraphrase (10) | "How long can the Borealis stay in the air on one battery?" | Everyday words; the document says "maximum flight time" |
+| identifier (6) | "What is the TH-640?", "What do I use PeopleHub for?" | Product codes and system names, where BM25 should shine |
+| keyword (3) | "Q2 gross margin", "battery storage temperature" | Bare search-box queries |
+
+### Metrics
+
+Retrieval is scored on the sections handed to the answer model. Faithfulness, context
+precision and context recall, and answer relevance use an LLM judge (one call each).
+
+| Metric | Meaning |
+|---|---|
+| Hit@k / MRR | A source section is in the top k; 1 / rank of the first one |
+| Context precision / recall | Judged relevance of the passages (rank-weighted); share of the reference answer's statements the passages support |
+| Faithfulness | Share of the answer's claims the passages support (refusals have no claims to check) |
+| Answer relevance | 1-5 rating of how directly the answer addresses the question, scaled to 0-1 |
+| Correct / false refusals | Unanswerable questions declined; answerable questions wrongly declined |
+| Latency, cost | Per query, excluding questions slowed by free-tier rate limiting, and counting only the system's own model calls |
+
+### Results
+
+61 questions, k = 5, all models `gemini-3.5-flash-lite` (the free tier's daily quota rules
+out the larger Flash models for a run of this size), semantic cache off.
+
+| Configuration | Hit@5 | MRR | Context precision | Context recall | Faithfulness | Answer relevance | Correct refusals | False refusals | Latency p50 / p95 | Cost / query |
+|---|---|---|---|---|---|---|---|---|---|---|
+| Dense only (baseline) | 100% | 0.93 | 90% | 100% | 100% | 100% | 100% | 0% | 3.2 s / 7.5 s | $0.0009 |
+| Hybrid (dense + BM25 + RRF) | 92% | 0.85 | 83% | 92% | 100% | 92% | 100% | 8% | 4.0 s / 14.9 s | $0.0010 |
+| Hybrid + reranking | 91% | 0.87 | 86% | 91% | 100% | 91% | 100% | 9% | 12.2 s / 18.7 s | $0.0009 |
+| **Full** (hybrid + reranking + query rewriting + self-correction) | **100%** | 0.91 | 89% | 100% | 100% | 96% | 100% | 4% | 16.1 s / 47.3 s | $0.0018 |
+
+Hit rate by question type tells the real story:
+
+| Configuration | paraphrase (10) | identifier (6) | keyword (3) | numeric (18) | table (6) | comparison (4) | fact (6) | answered an unanswerable (8) |
+|---|---|---|---|---|---|---|---|---|
+| Dense only | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 0% |
+| Hybrid | 60% | 100% | 100% | 100% | 100% | 100% | 100% | 0% |
+| Hybrid + reranking | 50% | 100% | 100% | 100% | 100% | 100% | 100% | 0% |
+| Full | 100% | 100% | 100% | 100% | 100% | 100% | 100% | 0% |
+
+**What this corpus shows, honestly:**
+
+- **On five short documents, dense search alone already finds every answer.** BM25 and
+  reranking cannot improve on that, and both *lose* paraphrased questions: "How long can
+  the Borealis stay in the air?" matches sections containing "battery" while the
+  flight-time table, which never uses that word, drops out of the top 5. That is the cost
+  of keyword matching on a small corpus, and it is why the comparison is worth running
+  rather than assuming.
+- **Query rewriting and self-correction repair exactly that damage:** the full pipeline is
+  back to 100% on paraphrases and 100% overall, at roughly 4x the latency and twice the
+  cost of the baseline. Multi-query searches wording the document might use, and the
+  relevance grader retries when the first attempt comes back thin.
+- **No configuration ever answered an unanswerable question**, and faithfulness is 100%
+  throughout: when the context doesn't support an answer, the pipeline says so.
+- **Expect the balance to shift with scale.** BM25 earns its place on larger, more
+  repetitive corpora and on exact codes; here the identifier questions were easy for every
+  configuration because there is only one document to confuse them with.
+
+The two remaining failures (both paraphrases) are the answer model refusing although the
+right section was retrieved, which is a model-quality limit of flash-lite rather than a
+retrieval one.
+
+**A bug the evaluation found.** In the first complete run, hybrid + reranking scored 87%
+Hit@5 with **15% false refusals**. The cross-encoder's score threshold was dropping *every*
+passage on some questions, so the agent refused with nothing to read and the answer model
+never saw the evidence. Reranking now keeps at least `RERANK_MIN_KEEP` (3) passages in the
+fused order, leaving the "not in your documents" decision to the answer model and the
+graders:
+
+| Configuration | Hit@5 before → after | False refusals before → after |
+|---|---|---|
+| Hybrid + reranking | 87% → 91% | 15% → 9% |
+| Full | 96% → 100% | 8% → 4% |
 
 ## Branching model
 
