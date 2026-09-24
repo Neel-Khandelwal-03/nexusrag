@@ -185,7 +185,7 @@ async def run(
         # Load the cross-encoder first, so the first question's latency is honest.
         await asyncio.to_thread(service.warm_up)
     stopped = False
-    with checkpoint.open("a", encoding="utf-8") as out:
+    with checkpoint.open("a", encoding="utf-8", newline="\n") as out:
         for name in config_names:
             if stopped:
                 break
