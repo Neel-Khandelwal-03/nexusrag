@@ -1,0 +1,58 @@
+name: Deploy production
+
+# main only ever moves through a reviewed PR from staging, so a push here is a release.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    name: deploy
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      SPACE: ${{ vars.HF_USERNAME }}/${{ vars.HF_SPACE_PRODUCTION || 'nexusrag' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install the Hub client
+        run: pip install "huggingface_hub>=0.26"
+
+      - name: Deploy to the Space
+        id: deploy
+        run: |
+          python scripts/deploy_space.py \
+            --space "$SPACE" \
+            --environment production \
+            --branch main \
+            --repo "$GITHUB_REPOSITORY" \
+            --message "Release ${GITHUB_SHA::7}" \
+            --wait
+          echo "url=https://huggingface.co/spaces/$SPACE" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test the deployment
+        run: |
+          host=$(echo "$SPACE" | tr '/' '-' | tr '[:upper:]' '[:lower:]')
+          python scripts/healthcheck.py \
+            --url "https://${host}.hf.space/" \
+            --expect NexusRAG --timeout 30 --retries 20 --interval 15
